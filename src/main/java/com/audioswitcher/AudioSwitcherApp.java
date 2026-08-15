@@ -2,7 +2,6 @@ package com.audioswitcher;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.sun.jna.platform.win32.Kernel32;
-import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinError;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.audioswitcher.audio.AudioDeviceManager;
@@ -108,6 +107,10 @@ public class AudioSwitcherApp {
             SettingsFrame settingsFrame = new SettingsFrame(audioManager, configManager, updateHotkeysRunnable);
             new TrayManager(audioManager, settingsFrame, configManager);
 
+            // Open the clean dashboard on startup so the user immediately sees the app!
+            settingsFrame.setVisible(true);
+            settingsFrame.toFront();
+
             // 5. Background hot-plug detection timer (checks every 5 seconds for newly plugged/unplugged hardware)
             Timer hotPlugTimer = new Timer(5000, e -> audioManager.refreshDevices());
             hotPlugTimer.setRepeats(true);
@@ -117,7 +120,7 @@ public class AudioSwitcherApp {
             System.out.println("  Audio Switcher started successfully!");
             System.out.println("  Active Playback Device: " + (audioManager.getDefaultDevice() != null ? audioManager.getDefaultDevice().getName() : "None"));
             System.out.println("  Cycle Shortcut: " + config.getHotkeyDisplayString());
-            System.out.println("  System tray icon is active.");
+            System.out.println("  Default Number Shortcuts: Ctrl + Alt + 1, 2, 3...");
             System.out.println("==================================================");
 
             // Register shutdown hook

@@ -50,12 +50,13 @@ public class AppConfig {
         }
     }
 
-    // Global cycle hotkey: default Ctrl + Alt + A
+    // Global cycle hotkey: default Ctrl + Alt + S (S for Sound / Switch)
     private int hotkeyModifiers = 3; // 1 (ALT) + 2 (CTRL) = 3
-    private int hotkeyKeyCode = KeyEvent.VK_A;
-    private String hotkeyDisplayString = "Ctrl + Alt + A";
+    private int hotkeyKeyCode = KeyEvent.VK_S;
+    private String hotkeyDisplayString = "Ctrl + Alt + S";
 
     // Dedicated hotkeys per specific audio device: deviceId -> DeviceHotkey
+    // E.g. Device 1 = Ctrl + Alt + 1, Device 2 = Ctrl + Alt + 2, etc.
     private Map<String, DeviceHotkey> deviceHotkeys = new HashMap<>();
 
     // Device IDs enabled for the cycle shortcut
@@ -71,6 +72,9 @@ public class AppConfig {
 
     // Windows startup setting
     private boolean startWithWindows = false;
+
+    // First run flag
+    private boolean initialized = false;
 
     public int getHotkeyModifiers() {
         return hotkeyModifiers;
@@ -108,6 +112,9 @@ public class AppConfig {
     }
 
     public Set<String> getEnabledDeviceIds() {
+        if (enabledDeviceIds == null) {
+            enabledDeviceIds = new HashSet<>();
+        }
         return enabledDeviceIds;
     }
 
@@ -153,5 +160,13 @@ public class AppConfig {
 
     public void setStartWithWindows(boolean startWithWindows) {
         this.startWithWindows = startWithWindows;
+    }
+
+    public boolean isInitialized() {
+        return initialized;
+    }
+
+    public void setInitialized(boolean initialized) {
+        this.initialized = initialized;
     }
 }

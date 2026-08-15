@@ -4,9 +4,12 @@ import com.audioswitcher.config.AppConfig;
 import com.audioswitcher.config.ConfigManager;
 import com.audioswitcher.model.AudioDevice;
 
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -27,24 +30,53 @@ public class AudioDeviceManager {
         List<AudioDevice> freshList = WindowsCoreAudio.getPlaybackDevices();
         AppConfig config = configManager.getConfig();
         Set<String> enabledIds = config.getEnabledDeviceIds();
+        Map<String, AppConfig.DeviceHotkey> hotkeys = config.getDeviceHotkeys();
 
-        // If enabledIds is empty (first launch), enable all detected devices by default
-        boolean firstRun = enabledIds == null || enabledIds.isEmpty();
+        boolean firstRun = !config.isInitialized() || enabledIds.isEmpty();
+        boolean configUpdated = false;
+
         if (firstRun) {
-            enabledIds = new java.util.HashSet<>();
+            enabledIds = new HashSet<>();
         }
 
-        for (AudioDevice device : freshList) {
+        // Available number keys for auto-assigning clean default shortcuts (Ctrl + Alt + 1..9)
+        int[] numKeys = {
+                KeyEvent.VK_1, KeyEvent.VK_2, KeyEvent.VK_3,
+                KeyEvent.VK_4, KeyEvent.VK_5, KeyEvent.VK_6,
+                KeyEvent.VK_7, KeyEvent.VK_8, KeyEvent.VK_9
+        };
+
+        for (int i = 0; i < freshList.size(); i++) {
+            AudioDevice device = freshList.get(i);
+
+            // Auto-enable in cycle on first run
             if (firstRun) {
                 enabledIds.add(device.getId());
                 device.setCycleEnabled(true);
+                configUpdated = true;
             } else {
                 device.setCycleEnabled(enabledIds.contains(device.getId()));
+            }
+
+            // Auto-assign clean default shortcut (Ctrl + Alt + 1..9) if device has none
+            if (!hotkeys.containsKey(device.getId()) && i < numKeys.length) {
+                int number = i + 1;
+                hotkeys.put(device.getId(), new AppConfig.DeviceHotkey(
+                        3, // Ctrl (2) + Alt (1)
+                        numKeys[i],
+                        "Ctrl + Alt + " + number
+                ));
+                configUpdated = true;
             }
         }
 
         if (firstRun) {
             config.setEnabledDeviceIds(enabledIds);
+            config.setInitialized(true);
+            configUpdated = true;
+        }
+
+        if (configUpdated) {
             configManager.saveConfig();
         }
 
@@ -123,7 +155,6 @@ public class AudioDeviceManager {
     public synchronized boolean switchToDevice(String deviceId) {
         boolean success = WindowsCoreAudio.setDefaultPlaybackDevice(deviceId);
         if (success) {
-            // Update cached states
             AudioDevice newlyActive = null;
             for (AudioDevice d : cachedDevices) {
                 boolean isMatch = d.getId().equalsIgnoreCase(deviceId);
