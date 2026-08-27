@@ -69,6 +69,7 @@ public class AppConfig {
 
     // Audio chime notification
     private boolean playChimeOnSwitch = true;
+    private int chimeVolume = 35; // Default 35% (gentle and pleasant)
 
     // Windows startup setting
     private boolean startWithWindows = false;
@@ -152,6 +153,14 @@ public class AppConfig {
 
     public void setPlayChimeOnSwitch(boolean playChimeOnSwitch) {
         this.playChimeOnSwitch = playChimeOnSwitch;
+    }
+
+    public int getChimeVolume() {
+        return chimeVolume <= 0 ? 35 : chimeVolume;
+    }
+
+    public void setChimeVolume(int chimeVolume) {
+        this.chimeVolume = Math.max(0, Math.min(100, chimeVolume));
     }
 
     public boolean isStartWithWindows() {

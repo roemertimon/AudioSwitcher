@@ -54,6 +54,7 @@ public class AudioSwitcherApp {
             // 3. Initialize components
             ConfigManager configManager = new ConfigManager();
             AppConfig config = configManager.getConfig();
+            SoundNotifier.setVolume(config.getChimeVolume() / 100.0f);
 
             AudioDeviceManager audioManager = new AudioDeviceManager(configManager);
             OsdOverlay osdOverlay = new OsdOverlay();
