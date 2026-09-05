@@ -57,6 +57,7 @@ public class SettingsFrame extends JFrame {
         this.onHotkeysChanged = onHotkeysChanged;
 
         setTitle("Audio Switcher");
+        setIconImage(createAppIcon());
         setSize(760, 710);
         setMinimumSize(new Dimension(680, 620));
         setLocationRelativeTo(null);
@@ -468,6 +469,23 @@ public class SettingsFrame extends JFrame {
 
         bottomBar.add(actionBtns, BorderLayout.EAST);
         root.add(bottomBar, BorderLayout.SOUTH);
+    }
+
+    private Image createAppIcon() {
+        int size = 32;
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(new Color(37, 99, 235));
+        g2.fillOval(2, 2, size - 4, size - 4);
+        g2.setColor(Color.WHITE);
+        int[] x = {8, 13, 20, 20, 13, 8};
+        int[] y = {13, 13, 7, 25, 19, 19};
+        g2.fillPolygon(x, y, 6);
+        g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawArc(19, 10, 8, 12, -45, 90);
+        g2.dispose();
+        return img;
     }
 
     private JButton createStyledButton(String text, boolean primary) {

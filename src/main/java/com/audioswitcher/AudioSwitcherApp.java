@@ -2,6 +2,8 @@ package com.audioswitcher;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinError;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.audioswitcher.audio.AudioDeviceManager;
@@ -25,13 +27,15 @@ public class AudioSwitcherApp {
     private static HANDLE appMutex = null;
 
     public static void main(String[] args) {
-        // 1. Single Instance Check via Windows Mutex
+        // 1. Single Instance Check: if already running, bring existing window to front and exit quietly (no annoying popup!)
         appMutex = Kernel32.INSTANCE.CreateMutex(null, true, MUTEX_NAME);
         if (Kernel32.INSTANCE.GetLastError() == WinError.ERROR_ALREADY_EXISTS) {
-            JOptionPane.showMessageDialog(null,
-                    "Audio Switcher is already running in the background (check your system tray icon).",
-                    "Audio Switcher",
-                    JOptionPane.INFORMATION_MESSAGE);
+            HWND hwnd = User32.INSTANCE.FindWindow(null, "Audio Switcher");
+            if (hwnd != null) {
+                User32.INSTANCE.ShowWindow(hwnd, 9); // SW_RESTORE
+                User32.INSTANCE.SetForegroundWindow(hwnd);
+            }
+            System.out.println("Audio Switcher is already active. Existing window brought to front.");
             System.exit(0);
         }
 
@@ -44,11 +48,7 @@ public class AudioSwitcherApp {
 
         SwingUtilities.invokeLater(() -> {
             if (!SystemTray.isSupported()) {
-                JOptionPane.showMessageDialog(null,
-                        "System Tray is not supported on this platform.",
-                        "Audio Switcher",
-                        JOptionPane.ERROR_MESSAGE);
-                System.exit(1);
+                System.err.println("System Tray is not supported on this platform.");
             }
 
             // 3. Initialize components
@@ -108,7 +108,7 @@ public class AudioSwitcherApp {
             SettingsFrame settingsFrame = new SettingsFrame(audioManager, configManager, updateHotkeysRunnable);
             new TrayManager(audioManager, settingsFrame, configManager);
 
-            // Open the clean dashboard on startup so the user immediately sees the app!
+            // Open the clean dashboard on startup
             settingsFrame.setVisible(true);
             settingsFrame.toFront();
 
