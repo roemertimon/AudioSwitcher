@@ -59,8 +59,8 @@ public class SettingsFrame extends JFrame {
 
         setTitle("Audio Switcher");
         setIconImage(createAppIcon());
-        setSize(780, 720);
-        setMinimumSize(new Dimension(720, 640));
+        setSize(800, 720);
+        setMinimumSize(new Dimension(720, 650));
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 
@@ -72,10 +72,33 @@ public class SettingsFrame extends JFrame {
     }
 
     private void initUi() {
-        JPanel root = new JPanel(new BorderLayout(0, 14));
-        root.setBorder(new EmptyBorder(18, 22, 18, 22));
+        // Outer root panel with responsive max-width layout (keeps content centered even in fullscreen!)
+        JPanel root = new JPanel(null) {
+            @Override
+            public void doLayout() {
+                int w = getWidth();
+                int h = getHeight();
+                int maxContentW = 840;
+                int maxContentH = 670;
+
+                int contentW = Math.min(maxContentW, Math.max(680, w - 48));
+                int contentH = Math.min(maxContentH, Math.max(620, h - 36));
+
+                int x = (w - contentW) / 2;
+                int y = (h > contentH + 40) ? 20 : Math.max(10, (h - contentH) / 2);
+
+                if (getComponentCount() > 0) {
+                    getComponent(0).setBounds(x, y, contentW, contentH);
+                }
+            }
+        };
         root.setBackground(new Color(24, 25, 28));
         setContentPane(root);
+
+        // Main content wrapper
+        JPanel contentWrapper = new JPanel(new BorderLayout(0, 14));
+        contentWrapper.setOpaque(false);
+        root.add(contentWrapper);
 
         // ================= TOP HEADER BANNER =================
         JPanel headerPanel = new JPanel(new BorderLayout(16, 0));
@@ -103,7 +126,7 @@ public class SettingsFrame extends JFrame {
         badgeCard.setBackground(new Color(33, 37, 43));
         badgeCard.setBorder(new CompoundBorder(
                 new LineBorder(new Color(55, 65, 81), 1, true),
-                new EmptyBorder(4, 12, 4, 12)
+                new EmptyBorder(4, 14, 4, 14)
         ));
 
         JLabel dotLabel = new JLabel("●");
@@ -117,7 +140,7 @@ public class SettingsFrame extends JFrame {
         badgeCard.add(activeDeviceBadgeLabel);
 
         headerPanel.add(badgeCard, BorderLayout.EAST);
-        root.add(headerPanel, BorderLayout.NORTH);
+        contentWrapper.add(headerPanel, BorderLayout.NORTH);
 
         // ================= CENTER CONTENT =================
         JPanel centerPanel = new JPanel();
@@ -153,18 +176,26 @@ public class SettingsFrame extends JFrame {
         devicesTable.setBackground(new Color(28, 31, 36));
         devicesTable.setForeground(Color.WHITE);
         devicesTable.setSelectionBackground(new Color(49, 65, 95));
-        devicesTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
         // Header alignment
         ((DefaultTableCellRenderer) devicesTable.getTableHeader().getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.CENTER);
 
-        // Column width setup
-        devicesTable.getColumnModel().getColumn(0).setPreferredWidth(55);
+        // FIXED COLUMN WIDTHS: Only Column 1 ("Device Name") expands!
+        // This completely prevents columns from drifting apart in fullscreen!
+        devicesTable.getColumnModel().getColumn(0).setMinWidth(50);
         devicesTable.getColumnModel().getColumn(0).setMaxWidth(65);
-        devicesTable.getColumnModel().getColumn(1).setPreferredWidth(320); // Device Name gets plenty of room
+        devicesTable.getColumnModel().getColumn(0).setPreferredWidth(55);
+
+        devicesTable.getColumnModel().getColumn(1).setPreferredWidth(480); // Expands naturally
+
+        devicesTable.getColumnModel().getColumn(2).setMinWidth(130);
+        devicesTable.getColumnModel().getColumn(2).setMaxWidth(160);
         devicesTable.getColumnModel().getColumn(2).setPreferredWidth(140);
-        devicesTable.getColumnModel().getColumn(3).setPreferredWidth(90);
+
+        devicesTable.getColumnModel().getColumn(3).setMinWidth(80);
+        devicesTable.getColumnModel().getColumn(3).setMaxWidth(110);
+        devicesTable.getColumnModel().getColumn(3).setPreferredWidth(95);
 
         // Custom centered checkbox renderer for Cycle column
         devicesTable.getColumnModel().getColumn(0).setCellRenderer((table, value, isSelected, hasFocus, row, column) -> {
@@ -231,7 +262,7 @@ public class SettingsFrame extends JFrame {
         });
 
         JScrollPane scrollPane = new JScrollPane(devicesTable);
-        scrollPane.setPreferredSize(new Dimension(710, 170));
+        scrollPane.setPreferredSize(new Dimension(800, 175));
         scrollPane.setBorder(new LineBorder(new Color(45, 50, 58), 1));
         devicesCard.add(scrollPane, BorderLayout.CENTER);
 
@@ -351,7 +382,7 @@ public class SettingsFrame extends JFrame {
 
         // 3. CARD: PREFERENCES (Completely restructured, perfectly aligned 2-column layout)
         JPanel prefCard = createCardPanel();
-        prefCard.setLayout(new GridLayout(1, 2, 28, 0));
+        prefCard.setLayout(new GridLayout(1, 2, 32, 0));
 
         // Left Column: Audio Feedback & Volume
         JPanel leftCol = new JPanel(new GridBagLayout());
@@ -432,7 +463,7 @@ public class SettingsFrame extends JFrame {
         gbcR.gridy = 1;
         osdCheckBox = new JCheckBox("Show On-Screen Display (OSD)");
         osdCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        rightCol.add(osdCheckBox);
+        rightCol.add(osdCheckBox, gbcR);
 
         // OSD Position & Duration Row
         gbcR.gridy = 2;
@@ -464,7 +495,7 @@ public class SettingsFrame extends JFrame {
         prefCard.add(rightCol);
         centerPanel.add(prefCard);
 
-        root.add(centerPanel, BorderLayout.CENTER);
+        contentWrapper.add(centerPanel, BorderLayout.CENTER);
 
         // ================= BOTTOM ACTIONS =================
         JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
@@ -489,7 +520,7 @@ public class SettingsFrame extends JFrame {
         actionBtns.add(saveBtn);
 
         bottomBar.add(actionBtns, BorderLayout.EAST);
-        root.add(bottomBar, BorderLayout.SOUTH);
+        contentWrapper.add(bottomBar, BorderLayout.SOUTH);
     }
 
     private Image createAppIcon() {
