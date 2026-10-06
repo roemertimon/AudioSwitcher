@@ -59,8 +59,8 @@ public class SettingsFrame extends JFrame {
 
         setTitle("Audio Switcher");
         setIconImage(createAppIcon());
-        setSize(800, 720);
-        setMinimumSize(new Dimension(720, 650));
+        setSize(820, 730);
+        setMinimumSize(new Dimension(740, 660));
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 
@@ -78,14 +78,14 @@ public class SettingsFrame extends JFrame {
             public void doLayout() {
                 int w = getWidth();
                 int h = getHeight();
-                int maxContentW = 840;
-                int maxContentH = 670;
+                int maxContentW = 860;
+                int maxContentH = 680;
 
-                int contentW = Math.min(maxContentW, Math.max(680, w - 48));
-                int contentH = Math.min(maxContentH, Math.max(620, h - 36));
+                int contentW = Math.min(maxContentW, Math.max(700, w - 48));
+                int contentH = Math.min(maxContentH, Math.max(630, h - 36));
 
                 int x = (w - contentW) / 2;
-                int y = (h > contentH + 40) ? 20 : Math.max(10, (h - contentH) / 2);
+                int y = (h > contentH + 36) ? 18 : Math.max(8, (h - contentH) / 2);
 
                 if (getComponentCount() > 0) {
                     getComponent(0).setBounds(x, y, contentW, contentH);
@@ -96,7 +96,7 @@ public class SettingsFrame extends JFrame {
         setContentPane(root);
 
         // Main content wrapper
-        JPanel contentWrapper = new JPanel(new BorderLayout(0, 14));
+        JPanel contentWrapper = new JPanel(new BorderLayout(0, 12));
         contentWrapper.setOpaque(false);
         root.add(contentWrapper);
 
@@ -182,7 +182,6 @@ public class SettingsFrame extends JFrame {
                 .setHorizontalAlignment(SwingConstants.CENTER);
 
         // FIXED COLUMN WIDTHS: Only Column 1 ("Device Name") expands!
-        // This completely prevents columns from drifting apart in fullscreen!
         devicesTable.getColumnModel().getColumn(0).setMinWidth(50);
         devicesTable.getColumnModel().getColumn(0).setMaxWidth(65);
         devicesTable.getColumnModel().getColumn(0).setPreferredWidth(55);
@@ -266,7 +265,7 @@ public class SettingsFrame extends JFrame {
         scrollPane.setBorder(new LineBorder(new Color(45, 50, 58), 1));
         devicesCard.add(scrollPane, BorderLayout.CENTER);
 
-        // Neatly aligned action buttons under table
+        // Buttons under table
         JPanel devicesBtnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
         devicesBtnBar.setOpaque(false);
 
@@ -290,30 +289,30 @@ public class SettingsFrame extends JFrame {
         devicesCard.add(devicesBtnBar, BorderLayout.SOUTH);
 
         centerPanel.add(devicesCard);
-        centerPanel.add(Box.createVerticalStrut(12));
+        centerPanel.add(Box.createVerticalStrut(10));
 
-        // 2. CARD: GLOBAL CYCLE SHORTCUT
+        // 2. CARD: GLOBAL CYCLE SHORTCUT (Using reliable FlowLayout so it NEVER squishes!)
         JPanel cycleCard = createCardPanel();
-        cycleCard.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(6, 10, 6, 10);
-        gbc.anchor = GridBagConstraints.WEST;
+        cycleCard.setLayout(new BorderLayout(0, 4));
 
-        gbc.gridx = 0;
-        gbc.gridy = 0;
+        JPanel cycleRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 4));
+        cycleRow.setOpaque(false);
+
         JLabel cycleLabel = new JLabel("Cycle Next Device:");
         cycleLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
         cycleLabel.setForeground(new Color(240, 242, 245));
-        cycleCard.add(cycleLabel, gbc);
+        cycleRow.add(cycleLabel);
 
-        globalHotkeyField = new JTextField(15);
-        globalHotkeyField.setPreferredSize(new Dimension(170, 30));
+        globalHotkeyField = new JTextField(16);
+        globalHotkeyField.setPreferredSize(new Dimension(180, 32));
+        globalHotkeyField.setMinimumSize(new Dimension(170, 32));
+        globalHotkeyField.setMaximumSize(new Dimension(200, 32));
         globalHotkeyField.setEditable(false);
         globalHotkeyField.setHorizontalAlignment(JTextField.CENTER);
         globalHotkeyField.setFont(new Font("Segoe UI", Font.BOLD, 13));
         globalHotkeyField.setBackground(new Color(36, 40, 47));
         globalHotkeyField.setForeground(new Color(96, 165, 250));
-        globalHotkeyField.setBorder(new CompoundBorder(new LineBorder(new Color(55, 65, 81), 1), new EmptyBorder(4, 8, 4, 8)));
+        globalHotkeyField.setBorder(new CompoundBorder(new LineBorder(new Color(55, 65, 81), 1), new EmptyBorder(4, 10, 4, 10)));
         globalHotkeyField.setToolTipText("Click here and press modifier keys + key to change");
 
         globalHotkeyField.addKeyListener(new KeyAdapter() {
@@ -355,60 +354,50 @@ public class SettingsFrame extends JFrame {
                 globalHotkeyField.setText(selectedGlobalKeyDisplay);
             }
         });
-
-        gbc.gridx = 1;
-        cycleCard.add(globalHotkeyField, gbc);
+        cycleRow.add(globalHotkeyField);
 
         JButton resetHotkeyBtn = createStyledButton("Default (Ctrl+Alt+S)", false);
+        resetHotkeyBtn.setPreferredSize(new Dimension(150, 32));
         resetHotkeyBtn.addActionListener(e -> {
             selectedGlobalModifiers = 3;
             selectedGlobalKeyCode = KeyEvent.VK_S;
             selectedGlobalKeyDisplay = "Ctrl + Alt + S";
             globalHotkeyField.setText(selectedGlobalKeyDisplay);
         });
-        gbc.gridx = 2;
-        cycleCard.add(resetHotkeyBtn, gbc);
+        cycleRow.add(resetHotkeyBtn);
 
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.gridwidth = 3;
-        JLabel cycleHelp = new JLabel("Cycles sequentially through all devices marked with 'Cycle' in the table above.");
+        cycleCard.add(cycleRow, BorderLayout.CENTER);
+
+        JLabel cycleHelp = new JLabel("Cycles sequentially through all devices marked with 'Cycle' in the table above.", SwingConstants.CENTER);
         cycleHelp.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         cycleHelp.setForeground(new Color(156, 163, 175));
-        cycleCard.add(cycleHelp, gbc);
+        cycleCard.add(cycleHelp, BorderLayout.SOUTH);
 
         centerPanel.add(cycleCard);
-        centerPanel.add(Box.createVerticalStrut(12));
+        centerPanel.add(Box.createVerticalStrut(10));
 
-        // 3. CARD: PREFERENCES (Completely restructured, perfectly aligned 2-column layout)
+        // 3. CARD: PREFERENCES (Perfect 2-column layout with generous spacing and NO truncation!)
         JPanel prefCard = createCardPanel();
-        prefCard.setLayout(new GridLayout(1, 2, 32, 0));
+        prefCard.setLayout(new GridLayout(1, 2, 28, 0));
 
         // Left Column: Audio Feedback & Volume
-        JPanel leftCol = new JPanel(new GridBagLayout());
+        JPanel leftCol = new JPanel();
+        leftCol.setLayout(new BoxLayout(leftCol, BoxLayout.Y_AXIS));
         leftCol.setOpaque(false);
-        GridBagConstraints gbcL = new GridBagConstraints();
-        gbcL.anchor = GridBagConstraints.WEST;
-        gbcL.fill = GridBagConstraints.HORIZONTAL;
-        gbcL.insets = new Insets(3, 4, 3, 4);
 
-        // Section header
-        gbcL.gridx = 0;
-        gbcL.gridy = 0;
         JLabel audioSectionTitle = new JLabel("AUDIO NOTIFICATION");
         audioSectionTitle.setFont(new Font("Segoe UI", Font.BOLD, 11));
         audioSectionTitle.setForeground(new Color(130, 140, 155));
-        leftCol.add(audioSectionTitle, gbcL);
+        leftCol.add(audioSectionTitle);
+        leftCol.add(Box.createVerticalStrut(8));
 
-        // Chime checkbox
-        gbcL.gridy = 1;
         chimeCheckBox = new JCheckBox("Play acoustic chime on switch");
         chimeCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        leftCol.add(chimeCheckBox, gbcL);
+        leftCol.add(chimeCheckBox);
+        leftCol.add(Box.createVerticalStrut(8));
 
         // Volume row: Label + Slider + 35% + Test button
-        gbcL.gridy = 2;
-        JPanel volRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        JPanel volRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         volRow.setOpaque(false);
 
         JLabel volLabel = new JLabel("Volume:");
@@ -440,57 +429,59 @@ public class SettingsFrame extends JFrame {
             SoundNotifier.setVolume(val / 100.0f);
         });
 
-        leftCol.add(volRow, gbcL);
+        leftCol.add(volRow);
         prefCard.add(leftCol);
 
-        // Right Column: Display & Windows Startup
-        JPanel rightCol = new JPanel(new GridBagLayout());
+        // Right Column: Display & Windows Startup (Completely clean, organized rows!)
+        JPanel rightCol = new JPanel();
+        rightCol.setLayout(new BoxLayout(rightCol, BoxLayout.Y_AXIS));
         rightCol.setOpaque(false);
-        GridBagConstraints gbcR = new GridBagConstraints();
-        gbcR.anchor = GridBagConstraints.WEST;
-        gbcR.fill = GridBagConstraints.HORIZONTAL;
-        gbcR.insets = new Insets(3, 4, 3, 4);
 
-        // Section header
-        gbcR.gridx = 0;
-        gbcR.gridy = 0;
         JLabel displaySectionTitle = new JLabel("DISPLAY & STARTUP");
         displaySectionTitle.setFont(new Font("Segoe UI", Font.BOLD, 11));
         displaySectionTitle.setForeground(new Color(130, 140, 155));
-        rightCol.add(displaySectionTitle, gbcR);
+        rightCol.add(displaySectionTitle);
+        rightCol.add(Box.createVerticalStrut(8));
 
-        // OSD Checkbox
-        gbcR.gridy = 1;
         osdCheckBox = new JCheckBox("Show On-Screen Display (OSD)");
         osdCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        rightCol.add(osdCheckBox, gbcR);
+        rightCol.add(osdCheckBox);
+        rightCol.add(Box.createVerticalStrut(6));
 
-        // OSD Position & Duration Row
-        gbcR.gridy = 2;
-        JPanel osdRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        osdRow.setOpaque(false);
+        // Row with Position and Duration neatly labeled and never truncated!
+        JPanel osdConfigRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        osdConfigRow.setOpaque(false);
 
         JLabel posLabel = new JLabel("Position:");
         posLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         posLabel.setForeground(new Color(156, 163, 175));
-        osdRow.add(posLabel);
+        osdConfigRow.add(posLabel);
 
         osdPositionCombo = new JComboBox<>(new String[]{"Top of Screen", "Center of Screen", "Bottom of Screen"});
-        osdPositionCombo.setPreferredSize(new Dimension(125, 26));
-        osdRow.add(osdPositionCombo);
+        osdPositionCombo.setPreferredSize(new Dimension(140, 26));
+        osdConfigRow.add(osdPositionCombo);
+
+        JLabel durLabel = new JLabel("Duration:");
+        durLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        durLabel.setForeground(new Color(156, 163, 175));
+        osdConfigRow.add(durLabel);
 
         durationSpinner = new JSpinner(new SpinnerNumberModel(1800, 500, 5000, 100));
         durationSpinner.setPreferredSize(new Dimension(65, 26));
         durationSpinner.setToolTipText("Duration in milliseconds");
-        osdRow.add(durationSpinner);
+        osdConfigRow.add(durationSpinner);
 
-        rightCol.add(osdRow, gbcR);
+        JLabel msLabel = new JLabel("ms");
+        msLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        msLabel.setForeground(new Color(156, 163, 175));
+        osdConfigRow.add(msLabel);
 
-        // Startup Checkbox (clean label without awkward truncation!)
-        gbcR.gridy = 3;
+        rightCol.add(osdConfigRow);
+        rightCol.add(Box.createVerticalStrut(6));
+
         startupCheckBox = new JCheckBox("Launch on Windows startup");
         startupCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        rightCol.add(startupCheckBox, gbcR);
+        rightCol.add(startupCheckBox);
 
         prefCard.add(rightCol);
         centerPanel.add(prefCard);
@@ -555,7 +546,7 @@ public class SettingsFrame extends JFrame {
         card.setBackground(new Color(30, 33, 39));
         card.setBorder(new CompoundBorder(
                 new LineBorder(new Color(45, 52, 64), 1, true),
-                new EmptyBorder(14, 18, 14, 18)
+                new EmptyBorder(12, 16, 12, 16)
         ));
         return card;
     }
