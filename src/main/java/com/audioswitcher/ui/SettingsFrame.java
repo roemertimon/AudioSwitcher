@@ -40,6 +40,7 @@ public class SettingsFrame extends JFrame {
     private JCheckBox chimeCheckBox;
     private JSlider volumeSlider;
     private JLabel volumeValueLabel;
+    private JButton testSoundBtn;
     private JCheckBox osdCheckBox;
     private JComboBox<String> osdPositionCombo;
     private JComboBox<String> osdDurationCombo;
@@ -59,8 +60,8 @@ public class SettingsFrame extends JFrame {
 
         setTitle("Audio Switcher");
         setIconImage(createAppIcon());
-        setSize(780, 745);
-        setResizable(false); // Fixed, perfectly proportioned window (no accidental stretching or distortion)
+        setSize(780, 750);
+        setResizable(false); // Fixed, non-distorting window dimensions
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 
@@ -162,7 +163,7 @@ public class SettingsFrame extends JFrame {
         ((DefaultTableCellRenderer) devicesTable.getTableHeader().getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.CENTER);
 
-        // Exact column widths: Device Name gets maximum comfortable width
+        // Column widths
         devicesTable.getColumnModel().getColumn(0).setMinWidth(55);
         devicesTable.getColumnModel().getColumn(0).setMaxWidth(60);
         devicesTable.getColumnModel().getColumn(0).setPreferredWidth(55);
@@ -241,7 +242,7 @@ public class SettingsFrame extends JFrame {
         });
 
         JScrollPane scrollPane = new JScrollPane(devicesTable);
-        scrollPane.setPreferredSize(new Dimension(740, 165));
+        scrollPane.setPreferredSize(new Dimension(740, 160));
         scrollPane.setBorder(new LineBorder(new Color(45, 50, 58), 1));
         devicesCard.add(scrollPane, BorderLayout.CENTER);
 
@@ -361,50 +362,56 @@ public class SettingsFrame extends JFrame {
         bodyPanel.add(cycleCard);
         bodyPanel.add(Box.createVerticalStrut(10));
 
-        // ---------------- SECTION C: PREFERENCES & FEEDBACK (ZERO OVERLAP 2-LINE SECTIONS) ----------------
+        // ---------------- SECTION C: PREFERENCES (STRICT GridBagLayout - 100% FLUSH LEFT, NO OVERLAP) ----------------
         JPanel prefCard = createCardPanel();
-        prefCard.setLayout(new BoxLayout(prefCard, BoxLayout.Y_AXIS));
+        prefCard.setLayout(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        gbc.gridx = 0;
 
+        // Header Title
+        gbc.gridy = 0;
+        gbc.insets = new Insets(0, 4, 10, 4);
         JLabel prefSectionTitle = createSectionTitle("PREFERENCES & FEEDBACK");
-        prefCard.add(prefSectionTitle);
-        prefCard.add(Box.createVerticalStrut(10));
+        prefCard.add(prefSectionTitle, gbc);
 
-        // 1. Audio Notification
-        JLabel audioTitle = new JLabel("Audio Notification");
-        audioTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        audioTitle.setForeground(new Color(230, 235, 245));
-        prefCard.add(audioTitle);
-        prefCard.add(Box.createVerticalStrut(4));
+        // 1. Audio Chime Checkbox
+        gbc.gridy = 1;
+        gbc.insets = new Insets(2, 4, 4, 4);
+        chimeCheckBox = new JCheckBox("Play acoustic chime on device switch");
+        chimeCheckBox.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        prefCard.add(chimeCheckBox, gbc);
 
-        JPanel audioRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
-        audioRow.setOpaque(false);
-
-        chimeCheckBox = new JCheckBox("Play acoustic chime on switch");
-        chimeCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        audioRow.add(chimeCheckBox);
+        // 1b. Volume Sub-row (cleanly indented 28px)
+        gbc.gridy = 2;
+        gbc.insets = new Insets(0, 28, 8, 4);
+        JPanel volRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        volRow.setOpaque(false);
 
         JLabel volLabel = new JLabel("Volume:");
         volLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         volLabel.setForeground(new Color(156, 163, 175));
-        audioRow.add(volLabel);
+        volRow.add(volLabel);
 
         volumeSlider = new JSlider(0, 100, 35);
-        volumeSlider.setPreferredSize(new Dimension(120, 24));
+        volumeSlider.setPreferredSize(new Dimension(130, 24));
         volumeSlider.setOpaque(false);
-        audioRow.add(volumeSlider);
+        volRow.add(volumeSlider);
 
         volumeValueLabel = new JLabel("35%");
         volumeValueLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        volumeValueLabel.setPreferredSize(new Dimension(36, 20));
-        audioRow.add(volumeValueLabel);
+        volumeValueLabel.setPreferredSize(new Dimension(38, 20));
+        volRow.add(volumeValueLabel);
 
-        JButton testSoundBtn = createStyledButton("Test", false);
+        testSoundBtn = createStyledButton("Test", false);
         testSoundBtn.setPreferredSize(new Dimension(58, 26));
         testSoundBtn.addActionListener(e -> {
             float vol = volumeSlider.getValue() / 100.0f;
             SoundNotifier.playSwitchChime(vol);
         });
-        audioRow.add(testSoundBtn);
+        volRow.add(testSoundBtn);
 
         volumeSlider.addChangeListener(e -> {
             int val = volumeSlider.getValue();
@@ -412,27 +419,27 @@ public class SettingsFrame extends JFrame {
             SoundNotifier.setVolume(val / 100.0f);
         });
 
-        prefCard.add(audioRow);
-        prefCard.add(Box.createVerticalStrut(10));
+        prefCard.add(volRow, gbc);
 
+        // Separator 1
+        gbc.gridy = 3;
+        gbc.insets = new Insets(6, 4, 8, 4);
         JSeparator sep1 = new JSeparator();
         sep1.setForeground(new Color(45, 50, 60));
-        prefCard.add(sep1);
-        prefCard.add(Box.createVerticalStrut(10));
+        prefCard.add(sep1, gbc);
 
-        // 2. On-Screen Display (OSD)
-        JLabel osdTitle = new JLabel("On-Screen Display (OSD)");
-        osdTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        osdTitle.setForeground(new Color(230, 235, 245));
-        prefCard.add(osdTitle);
-        prefCard.add(Box.createVerticalStrut(4));
+        // 2. OSD Checkbox
+        gbc.gridy = 4;
+        gbc.insets = new Insets(2, 4, 4, 4);
+        osdCheckBox = new JCheckBox("Show On-Screen Display (OSD) notification banner");
+        osdCheckBox.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        prefCard.add(osdCheckBox, gbc);
 
-        JPanel osdRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+        // 2b. OSD Position & Duration Sub-row (cleanly indented 28px)
+        gbc.gridy = 5;
+        gbc.insets = new Insets(0, 28, 8, 4);
+        JPanel osdRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         osdRow.setOpaque(false);
-
-        osdCheckBox = new JCheckBox("Show floating banner");
-        osdCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        osdRow.add(osdCheckBox);
 
         JLabel posLabel = new JLabel("Position:");
         posLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -440,7 +447,7 @@ public class SettingsFrame extends JFrame {
         osdRow.add(posLabel);
 
         osdPositionCombo = new JComboBox<>(new String[]{"Top of Screen", "Center of Screen", "Bottom of Screen"});
-        osdPositionCombo.setPreferredSize(new Dimension(140, 26));
+        osdPositionCombo.setPreferredSize(new Dimension(145, 26));
         osdRow.add(osdPositionCombo);
 
         JLabel durLabel = new JLabel("Duration:");
@@ -452,31 +459,27 @@ public class SettingsFrame extends JFrame {
         osdDurationCombo.setPreferredSize(new Dimension(85, 26));
         osdRow.add(osdDurationCombo);
 
-        prefCard.add(osdRow);
-        prefCard.add(Box.createVerticalStrut(10));
+        prefCard.add(osdRow, gbc);
 
+        // Separator 2
+        gbc.gridy = 6;
+        gbc.insets = new Insets(6, 4, 8, 4);
         JSeparator sep2 = new JSeparator();
         sep2.setForeground(new Color(45, 50, 60));
-        prefCard.add(sep2);
-        prefCard.add(Box.createVerticalStrut(10));
+        prefCard.add(sep2, gbc);
 
-        // 3. Windows Auto-Start
-        JLabel startupTitle = new JLabel("Windows Auto-Start");
-        startupTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        startupTitle.setForeground(new Color(230, 235, 245));
-        prefCard.add(startupTitle);
-        prefCard.add(Box.createVerticalStrut(4));
+        // 3. Startup Checkbox
+        gbc.gridy = 7;
+        gbc.insets = new Insets(2, 4, 4, 4);
+        startupCheckBox = new JCheckBox("Start Audio Switcher automatically with Windows (minimized in tray)");
+        startupCheckBox.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        prefCard.add(startupCheckBox, gbc);
 
-        JPanel startupRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
-        startupRow.setOpaque(false);
+        // Interactive toggle states: dims sub-controls when parent checkbox is unchecked!
+        chimeCheckBox.addActionListener(e -> updateControlStates());
+        osdCheckBox.addActionListener(e -> updateControlStates());
 
-        startupCheckBox = new JCheckBox("Start Audio Switcher automatically with Windows (in background tray)");
-        startupCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        startupRow.add(startupCheckBox);
-
-        prefCard.add(startupRow);
         bodyPanel.add(prefCard);
-
         root.add(bodyPanel, BorderLayout.CENTER);
 
         // ================= 3. BOTTOM ACTIONS BAR =================
@@ -503,6 +506,17 @@ public class SettingsFrame extends JFrame {
 
         bottomBar.add(actionBtns, BorderLayout.EAST);
         root.add(bottomBar, BorderLayout.SOUTH);
+    }
+
+    private void updateControlStates() {
+        boolean chimeEnabled = chimeCheckBox.isSelected();
+        volumeSlider.setEnabled(chimeEnabled);
+        testSoundBtn.setEnabled(chimeEnabled);
+        volumeValueLabel.setEnabled(chimeEnabled);
+
+        boolean osdEnabled = osdCheckBox.isSelected();
+        osdPositionCombo.setEnabled(osdEnabled);
+        osdDurationCombo.setEnabled(osdEnabled);
     }
 
     private JLabel createSectionTitle(String title) {
@@ -728,6 +742,7 @@ public class SettingsFrame extends JFrame {
             osdPositionCombo.setSelectedIndex(0);
         }
 
+        updateControlStates();
         updateActiveBadge();
     }
 
