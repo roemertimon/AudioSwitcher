@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Grant execute permission for gradlew
+      run: git update-index --chmod=+x gradlew
+      shell: bash
+
+    - name: Build and test with Gradle
+      run: .\gradlew.bat test fatJar --no-daemon
+
+    - name: Upload executable JAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AudioSwitcher-win-x64
+        path: build/libs/audio-switcher-1.0.0-all.jar
