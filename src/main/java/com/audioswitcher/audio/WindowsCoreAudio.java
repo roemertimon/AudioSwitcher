@@ -75,7 +75,7 @@ public class WindowsCoreAudio {
      */
     public static List<AudioDevice> getPlaybackDevices() {
         List<AudioDevice> devices = new ArrayList<>();
-        Ole32.INSTANCE.CoInitializeEx(null, Ole32.COINIT_APARTMENTTHREADED);
+        HRESULT coInitHr = Ole32.INSTANCE.CoInitializeEx(null, Ole32.COINIT_APARTMENTTHREADED);
 
         Pointer pEnumerator = null;
         Pointer pCollection = null;
@@ -148,7 +148,9 @@ public class WindowsCoreAudio {
         } finally {
             release(pCollection);
             release(pEnumerator);
-            Ole32.INSTANCE.CoUninitialize();
+            if (coInitHr != null && (coInitHr.intValue() == 0 || coInitHr.intValue() == 1)) {
+                Ole32.INSTANCE.CoUninitialize();
+            }
         }
 
         return devices;
@@ -243,7 +245,7 @@ public class WindowsCoreAudio {
             return false;
         }
 
-        Ole32.INSTANCE.CoInitializeEx(null, Ole32.COINIT_APARTMENTTHREADED);
+        HRESULT coInitHr = Ole32.INSTANCE.CoInitializeEx(null, Ole32.COINIT_APARTMENTTHREADED);
         boolean success = false;
 
         try {
@@ -252,7 +254,9 @@ public class WindowsCoreAudio {
         } catch (Exception e) {
             System.err.println("Direct COM set endpoint failed: " + e.getMessage());
         } finally {
-            Ole32.INSTANCE.CoUninitialize();
+            if (coInitHr != null && (coInitHr.intValue() == 0 || coInitHr.intValue() == 1)) {
+                Ole32.INSTANCE.CoUninitialize();
+            }
         }
 
         if (!success) {
@@ -297,12 +301,20 @@ public class WindowsCoreAudio {
             Pointer pSetDefault = callVTable(pPolicyConfig, 13);
             Function func = Function.getFunction(pSetDefault);
 
-            // Set for eConsole (0), eMultimedia (1), eCommunications (2)
+            // Set primary console playback first
             int hr0 = (int) func.invoke(int.class, new Object[]{pPolicyConfig, wDeviceId, eConsole});
-            int hr1 = (int) func.invoke(int.class, new Object[]{pPolicyConfig, wDeviceId, eMultimedia});
-            int hr2 = (int) func.invoke(int.class, new Object[]{pPolicyConfig, wDeviceId, eCommunications});
+            if (hr0 != 0) {
+                return false;
+            }
 
-            return hr0 == 0;
+            // Also set multimedia and communication endpoints
+            try {
+                func.invoke(int.class, new Object[]{pPolicyConfig, wDeviceId, eMultimedia});
+                func.invoke(int.class, new Object[]{pPolicyConfig, wDeviceId, eCommunications});
+            } catch (Exception ignored) {
+            }
+
+            return true;
         } finally {
             release(pPolicyConfig);
         }

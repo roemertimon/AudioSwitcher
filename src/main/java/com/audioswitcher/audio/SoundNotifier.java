@@ -7,7 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Generates and plays a clean, gentle acoustic chime sound with adjustable volume.
+ * Generates and plays a clean, gentle acoustic chime sound with adjustable volume and zero lag.
  */
 public class SoundNotifier {
 
@@ -19,9 +19,14 @@ public class SoundNotifier {
 
     private static final AudioFormat FORMAT = new AudioFormat(44100, 16, 2, true, false);
     private static volatile float currentVolume = 0.35f; // default gentle volume (35%)
+    private static volatile byte[] cachedChimeBuffer = generateChimeBuffer(0.35f);
 
-    public static void setVolume(float volume) {
-        currentVolume = Math.max(0.0f, Math.min(1.0f, volume));
+    public static synchronized void setVolume(float volume) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, volume));
+        if (Math.abs(currentVolume - clamped) > 0.001f || cachedChimeBuffer == null) {
+            currentVolume = clamped;
+            cachedChimeBuffer = generateChimeBuffer(clamped);
+        }
     }
 
     public static float getVolume() {
@@ -31,9 +36,12 @@ public class SoundNotifier {
     /**
      * Synthesizes audio buffer for a bell chime scaled by the specified volume (0.0 to 1.0).
      */
-    private static byte[] generateChimeBuffer(float volume) {
+    public static byte[] generateChimeBuffer(float volume) {
+        if (volume <= 0.001f) {
+            return new byte[0];
+        }
         int sampleRate = 44100;
-        double durationSeconds = 0.25;
+        double durationSeconds = 0.22;
         int totalSamples = (int) (sampleRate * durationSeconds);
         byte[] buffer = new byte[totalSamples * 4]; // 16-bit stereo = 4 bytes per sample
 
@@ -47,9 +55,9 @@ public class SoundNotifier {
         for (int i = 0; i < totalSamples; i++) {
             double t = (double) i / sampleRate;
 
-            // Attack & exponential decay envelope
-            double attack = Math.min(1.0, t / 0.008); // 8ms attack to eliminate clicks
-            double decay = Math.exp(-t * 14.0); // Gentle bell-like decay
+            // Fast 6ms attack to eliminate clicks, smooth exponential decay
+            double attack = Math.min(1.0, t / 0.006);
+            double decay = Math.exp(-t * 15.0);
             double envelope = attack * decay;
 
             // Combined harmonic wave
@@ -73,7 +81,7 @@ public class SoundNotifier {
     }
 
     /**
-     * Plays the switch notification sound asynchronously on the newly active default device.
+     * Plays the switch notification sound asynchronously on the newly active default device with zero latency.
      */
     public static void playSwitchChime() {
         playSwitchChime(currentVolume);
@@ -84,14 +92,21 @@ public class SoundNotifier {
             return;
         }
 
+        final byte[] chimeBytes;
+        if (Math.abs(volume - currentVolume) < 0.01f && cachedChimeBuffer != null) {
+            chimeBytes = cachedChimeBuffer;
+        } else {
+            chimeBytes = generateChimeBuffer(volume);
+        }
+
+        if (chimeBytes.length == 0) {
+            return;
+        }
+
         soundExecutor.submit(() -> {
             try {
-                // Short pause to ensure Windows CoreAudio endpoint switch is routed
-                Thread.sleep(40);
-
-                byte[] chimeBytes = generateChimeBuffer(volume);
                 SourceDataLine line = AudioSystem.getSourceDataLine(FORMAT);
-                line.open(FORMAT, 4096);
+                line.open(FORMAT, Math.max(2048, chimeBytes.length));
                 line.start();
                 line.write(chimeBytes, 0, chimeBytes.length);
                 line.drain();

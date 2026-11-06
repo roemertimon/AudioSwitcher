@@ -22,10 +22,30 @@ public class WindowsCoreAudioTest {
             assertFalse(device.getName().isBlank(), "Device name should not be blank");
         }
 
-        // On physical machines devices will be present; on headless CI VMs in Azure without audio hardware it is empty.
-        // What matters is that CoreAudio COM initialization and device enumeration succeed without native crashes.
         if (devices.isEmpty()) {
             System.out.println("No active playback endpoints found (expected in headless CI virtual environments).");
         }
+    }
+
+    @Test
+    public void testSetDefaultPlaybackDeviceTiming() {
+        List<AudioDevice> devices = WindowsCoreAudio.getPlaybackDevices();
+        if (devices.isEmpty()) return;
+
+        AudioDevice defaultDev = null;
+        for (AudioDevice d : devices) {
+            if (d.isDefault()) {
+                defaultDev = d;
+                break;
+            }
+        }
+        if (defaultDev == null) defaultDev = devices.get(0);
+
+        long start = System.currentTimeMillis();
+        boolean success = WindowsCoreAudio.setDefaultPlaybackDevice(defaultDev.getId());
+        long elapsed = System.currentTimeMillis() - start;
+
+        System.out.println("setDefaultPlaybackDevice took: " + elapsed + " ms. Success=" + success);
+        assertTrue(success, "Switching to default device should succeed");
     }
 }
