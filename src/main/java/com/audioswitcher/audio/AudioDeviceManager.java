@@ -19,6 +19,7 @@ public class AudioDeviceManager {
 
     private final ConfigManager configManager;
     private final List<AudioDevice> cachedDevices = new ArrayList<>();
+    private final List<AudioDevice> allCachedDevices = new ArrayList<>();
     private final List<Consumer<AudioDevice>> deviceSwitchedListeners = new CopyOnWriteArrayList<>();
     private final List<Runnable> devicesChangedListeners = new CopyOnWriteArrayList<>();
 
@@ -112,8 +113,16 @@ public class AudioDeviceManager {
             configManager.saveConfig();
         }
 
+        allCachedDevices.clear();
+        allCachedDevices.addAll(freshList);
+
+        // Filter out devices hidden by user
         cachedDevices.clear();
-        cachedDevices.addAll(freshList);
+        for (AudioDevice d : freshList) {
+            if (!config.isDeviceHidden(d.getId(), d.getName())) {
+                cachedDevices.add(d);
+            }
+        }
 
         for (Runnable listener : devicesChangedListeners) {
             try {
@@ -122,6 +131,59 @@ public class AudioDeviceManager {
                 e.printStackTrace();
             }
         }
+    }
+
+    public synchronized void hideDevice(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) return;
+        AppConfig config = configManager.getConfig();
+        for (AudioDevice d : allCachedDevices) {
+            if (d.getId().equalsIgnoreCase(deviceId)) {
+                config.getHiddenDeviceIds().add(d.getId());
+                config.getHiddenDeviceNames().add(d.getName().toLowerCase());
+                config.getEnabledDeviceIds().remove(d.getId());
+                config.getEnabledDeviceNames().remove(d.getName());
+                config.getDeviceHotkeys().remove(d.getId());
+                configManager.saveConfig();
+                break;
+            }
+        }
+        refreshDevices();
+    }
+
+    public synchronized void unhideDevice(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) return;
+        AppConfig config = configManager.getConfig();
+        config.getHiddenDeviceIds().remove(deviceId);
+        for (AudioDevice d : allCachedDevices) {
+            if (d.getId().equalsIgnoreCase(deviceId)) {
+                config.getHiddenDeviceNames().remove(d.getName().toLowerCase());
+            }
+        }
+        configManager.saveConfig();
+        refreshDevices();
+    }
+
+    public synchronized void unhideAllDevices() {
+        AppConfig config = configManager.getConfig();
+        config.getHiddenDeviceIds().clear();
+        config.getHiddenDeviceNames().clear();
+        configManager.saveConfig();
+        refreshDevices();
+    }
+
+    public synchronized List<AudioDevice> getAllDevices() {
+        return Collections.unmodifiableList(new ArrayList<>(allCachedDevices));
+    }
+
+    public synchronized List<AudioDevice> getHiddenDevices() {
+        AppConfig config = configManager.getConfig();
+        List<AudioDevice> hidden = new ArrayList<>();
+        for (AudioDevice d : allCachedDevices) {
+            if (config.isDeviceHidden(d.getId(), d.getName())) {
+                hidden.add(d);
+            }
+        }
+        return Collections.unmodifiableList(hidden);
     }
 
     public synchronized List<AudioDevice> getDevices() {

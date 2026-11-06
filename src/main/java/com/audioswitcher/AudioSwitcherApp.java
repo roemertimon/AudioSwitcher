@@ -18,6 +18,14 @@ import com.audioswitcher.ui.TrayManager;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,7 +35,10 @@ import java.util.Set;
 public class AudioSwitcherApp {
 
     private static final String MUTEX_NAME = "Local\\AudioSwitcherSingleInstanceMutex";
+    private static final int IPC_PORT = 48729;
     private static HANDLE appMutex = null;
+    private static ServerSocket ipcServerSocket = null;
+    private static volatile SettingsFrame settingsFrameRef = null;
 
     public static void main(String[] args) {
         // Parse startup arguments
@@ -43,7 +54,20 @@ public class AudioSwitcherApp {
         }
         final boolean startMinimized = startMinimizedArg;
 
-        // 1. Single Instance Check: if already running, bring existing window to front and exit quietly
+        // 1. Single Instance Check:
+        // Try communicating with existing instance via localhost IPC to bring dashboard to front
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), IPC_PORT), 350);
+            OutputStream out = socket.getOutputStream();
+            out.write("SHOW\n".getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            System.out.println("Audio Switcher is already active. Notified existing instance to display dashboard.");
+            System.exit(0);
+        } catch (Exception ignored) {
+            // No instance listening on IPC port yet
+        }
+
+        // Secondary Mutex fallback
         appMutex = Kernel32.INSTANCE.CreateMutex(null, true, MUTEX_NAME);
         if (Kernel32.INSTANCE.GetLastError() == WinError.ERROR_ALREADY_EXISTS) {
             HWND hwnd = User32.INSTANCE.FindWindow(null, "Audio Switcher");
@@ -54,6 +78,9 @@ public class AudioSwitcherApp {
             System.out.println("Audio Switcher is already active. Existing window brought to front.");
             System.exit(0);
         }
+
+        // Start background IPC server so subsequent clicks reliably open the dashboard
+        startIpcListener();
 
         // 2. Set modern FlatLaf dark look and feel
         try {
@@ -99,12 +126,16 @@ public class AudioSwitcherApp {
                 ));
 
                 // Dedicated per-device hotkeys (ID >= 100)
-                // ONLY register hotkeys for devices that are CURRENTLY CONNECTED to prevent conflicts
+                // ONLY register hotkeys for devices that are CURRENTLY CONNECTED and NOT HIDDEN
                 int deviceHkId = HotkeyManager.DEVICE_HOTKEY_BASE_ID;
                 Map<String, AppConfig.DeviceHotkey> devHotkeys = config.getDeviceHotkeys();
                 List<AudioDevice> connectedDevices = audioManager.getDevices();
 
                 for (AudioDevice device : connectedDevices) {
+                    if (config.isDeviceHidden(device.getId(), device.getName())) {
+                        continue;
+                    }
+
                     AppConfig.DeviceHotkey hk = devHotkeys.get(device.getId());
                     if (hk != null && hk.getKeyCode() != 0) {
                         final int id = deviceHkId++;
@@ -128,6 +159,7 @@ public class AudioSwitcherApp {
 
             // 4. UI: Settings & System Tray
             SettingsFrame settingsFrame = new SettingsFrame(audioManager, configManager, updateHotkeysRunnable);
+            settingsFrameRef = settingsFrame;
             new TrayManager(audioManager, settingsFrame, configManager);
 
             // Handle start minimized: if requested via CLI or configured for Windows startup, keep hidden in tray
@@ -154,11 +186,48 @@ public class AudioSwitcherApp {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 hotPlugTimer.stop();
                 hotkeyManager.stop();
+                if (ipcServerSocket != null) {
+                    try {
+                        ipcServerSocket.close();
+                    } catch (Exception ignored) {
+                    }
+                }
                 if (appMutex != null) {
                     Kernel32.INSTANCE.ReleaseMutex(appMutex);
                     Kernel32.INSTANCE.CloseHandle(appMutex);
                 }
             }));
         });
+    }
+
+    private static void startIpcListener() {
+        try {
+            ipcServerSocket = new ServerSocket(IPC_PORT, 10, InetAddress.getLoopbackAddress());
+            Thread ipcThread = new Thread(() -> {
+                while (ipcServerSocket != null && !ipcServerSocket.isClosed()) {
+                    try {
+                        Socket client = ipcServerSocket.accept();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8));
+                        String cmd = reader.readLine();
+                        if ("SHOW".equalsIgnoreCase(cmd)) {
+                            SwingUtilities.invokeLater(() -> {
+                                if (settingsFrameRef != null) {
+                                    settingsFrameRef.refreshTableData();
+                                    settingsFrameRef.setVisible(true);
+                                    settingsFrameRef.toFront();
+                                    settingsFrameRef.requestFocus();
+                                }
+                            });
+                        }
+                        client.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }, "SingleInstanceIpcThread");
+            ipcThread.setDaemon(true);
+            ipcThread.start();
+        } catch (Exception e) {
+            System.err.println("Could not bind single-instance IPC port: " + e.getMessage());
+        }
     }
 }

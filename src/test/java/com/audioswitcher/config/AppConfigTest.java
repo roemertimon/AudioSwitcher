@@ -47,4 +47,18 @@ public class AppConfigTest {
         config.setStartMinimized(true);
         assertTrue(config.isStartMinimized());
     }
+
+    @Test
+    public void testHiddenDeviceProperties() {
+        AppConfig config = new AppConfig();
+        assertNotNull(config.getHiddenDeviceIds());
+        assertNotNull(config.getHiddenDeviceNames());
+
+        config.getHiddenDeviceIds().add("device-123");
+        config.getHiddenDeviceNames().add("nvidia high definition audio");
+
+        assertTrue(config.isDeviceHidden("device-123", "Some Name"));
+        assertTrue(config.isDeviceHidden("other-id", "NVIDIA High Definition Audio"));
+        assertFalse(config.isDeviceHidden("other-id", "Realtek Audio"));
+    }
 }

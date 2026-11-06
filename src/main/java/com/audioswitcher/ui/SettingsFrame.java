@@ -35,6 +35,7 @@ public class SettingsFrame extends JFrame {
     private JTable devicesTable;
     private DefaultTableModel tableModel;
     private JTextField globalHotkeyField;
+    private JButton manageHiddenBtn;
 
     // Setting controls
     private JCheckBox chimeCheckBox;
@@ -61,8 +62,9 @@ public class SettingsFrame extends JFrame {
 
         setTitle("Audio Switcher");
         setIconImage(createAppIcon());
-        setSize(780, 750);
-        setResizable(false); // Fixed, non-distorting window dimensions
+        setSize(880, 820);
+        setMinimumSize(new Dimension(840, 760));
+        setResizable(true); // Spacious, modern, resizable window layout
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 
@@ -243,13 +245,29 @@ public class SettingsFrame extends JFrame {
         });
 
         JScrollPane scrollPane = new JScrollPane(devicesTable);
-        scrollPane.setPreferredSize(new Dimension(740, 160));
+        scrollPane.setPreferredSize(new Dimension(820, 210));
         scrollPane.setBorder(new LineBorder(new Color(45, 50, 58), 1));
         devicesCard.add(scrollPane, BorderLayout.CENTER);
 
-        // Buttons under table
-        JPanel devicesBtnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 2));
+        // Buttons under table (West: Clean device management / Hide; East: Shortcuts & Refresh)
+        JPanel devicesBtnBar = new JPanel(new BorderLayout(8, 0));
         devicesBtnBar.setOpaque(false);
+
+        JPanel leftBtnBox = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        leftBtnBox.setOpaque(false);
+
+        JButton hideDeviceBtn = createStyledButton("Hide Selected", false);
+        hideDeviceBtn.setToolTipText("Remove selected audio device from UI, cycling loop, and tray menu");
+        hideDeviceBtn.addActionListener(e -> hideSelectedDevice());
+        leftBtnBox.add(hideDeviceBtn);
+
+        manageHiddenBtn = createStyledButton("Hidden Devices (0)", false);
+        manageHiddenBtn.setToolTipText("View and restore hidden audio devices");
+        manageHiddenBtn.addActionListener(e -> showManageHiddenDialog());
+        leftBtnBox.add(manageHiddenBtn);
+
+        JPanel rightBtnBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 2));
+        rightBtnBox.setOpaque(false);
 
         JButton setShortcutBtn = createStyledButton("Assign Shortcut...", false);
         setShortcutBtn.addActionListener(e -> promptSetDeviceShortcut());
@@ -264,10 +282,13 @@ public class SettingsFrame extends JFrame {
         JButton refreshBtn = createStyledButton("Refresh", false);
         refreshBtn.addActionListener(e -> refreshTableData());
 
-        devicesBtnBar.add(setShortcutBtn);
-        devicesBtnBar.add(clearShortcutBtn);
-        devicesBtnBar.add(autoAssignBtn);
-        devicesBtnBar.add(refreshBtn);
+        rightBtnBox.add(setShortcutBtn);
+        rightBtnBox.add(clearShortcutBtn);
+        rightBtnBox.add(autoAssignBtn);
+        rightBtnBox.add(refreshBtn);
+
+        devicesBtnBar.add(leftBtnBox, BorderLayout.WEST);
+        devicesBtnBar.add(rightBtnBox, BorderLayout.EAST);
         devicesCard.add(devicesBtnBar, BorderLayout.SOUTH);
 
         bodyPanel.add(devicesCard);
@@ -797,6 +818,118 @@ public class SettingsFrame extends JFrame {
             String shortcutStr = hk != null ? hk.getDisplayString() : "-";
             tableModel.addRow(new Object[]{device.isCycleEnabled(), device.getName(), shortcutStr, status});
         }
+
+        if (manageHiddenBtn != null) {
+            int hiddenCount = audioManager.getHiddenDevices().size();
+            manageHiddenBtn.setText("Hidden Devices (" + hiddenCount + ")");
+            manageHiddenBtn.setEnabled(hiddenCount > 0);
+        }
+    }
+
+    private void hideSelectedDevice() {
+        int selectedRow = devicesTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this, "Please select an audio device from the table to hide.", "Select Device", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        List<AudioDevice> devices = audioManager.getDevices();
+        if (selectedRow < devices.size()) {
+            AudioDevice dev = devices.get(selectedRow);
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Remove \"" + dev.getName() + "\" from the table, cycling, and tray menu?\n\n(You can restore hidden devices at any time via 'Hidden Devices')",
+                    "Hide Audio Device", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                workingDeviceHotkeys.remove(dev.getId());
+                audioManager.hideDevice(dev.getId());
+                refreshTableData();
+                if (onHotkeysChanged != null) {
+                    onHotkeysChanged.run();
+                }
+            }
+        }
+    }
+
+    private void showManageHiddenDialog() {
+        List<AudioDevice> hidden = audioManager.getHiddenDevices();
+        if (hidden.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "There are currently no hidden audio devices.", "Hidden Devices", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JDialog dialog = new JDialog(this, "Hidden Audio Devices", true);
+        dialog.setSize(520, 340);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout(12, 12));
+
+        JPanel content = new JPanel(new BorderLayout(10, 10));
+        content.setBorder(new EmptyBorder(16, 16, 16, 16));
+        content.setBackground(new Color(28, 31, 36));
+
+        JLabel label = new JLabel("Select an audio device to restore to the main list:");
+        label.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        label.setForeground(new Color(240, 242, 245));
+        content.add(label, BorderLayout.NORTH);
+
+        DefaultListModel<AudioDevice> listModel = new DefaultListModel<>();
+        for (AudioDevice d : hidden) {
+            listModel.addElement(d);
+        }
+        JList<AudioDevice> list = new JList<>(listModel);
+        list.setBackground(new Color(36, 40, 47));
+        list.setForeground(Color.WHITE);
+        list.setSelectionBackground(new Color(49, 65, 95));
+        list.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        list.setCellRenderer((l, value, index, isSelected, cellHasFocus) -> {
+            JLabel item = new JLabel(value != null ? value.getName() : "");
+            item.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            item.setBorder(new EmptyBorder(6, 8, 6, 8));
+            item.setOpaque(isSelected);
+            if (isSelected) {
+                item.setBackground(new Color(49, 65, 95));
+                item.setForeground(Color.WHITE);
+            } else {
+                item.setForeground(new Color(220, 225, 235));
+            }
+            return item;
+        });
+
+        JScrollPane sp = new JScrollPane(list);
+        sp.setBorder(new LineBorder(new Color(55, 65, 81), 1));
+        content.add(sp, BorderLayout.CENTER);
+
+        JPanel btnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        btnBar.setOpaque(false);
+
+        JButton unhideSelectedBtn = createStyledButton("Unhide Selected", true);
+        unhideSelectedBtn.addActionListener(e -> {
+            AudioDevice selected = list.getSelectedValue();
+            if (selected != null) {
+                audioManager.unhideDevice(selected.getId());
+                refreshTableData();
+                if (onHotkeysChanged != null) onHotkeysChanged.run();
+                dialog.dispose();
+            }
+        });
+
+        JButton unhideAllBtn = createStyledButton("Unhide All", false);
+        unhideAllBtn.addActionListener(e -> {
+            audioManager.unhideAllDevices();
+            refreshTableData();
+            if (onHotkeysChanged != null) onHotkeysChanged.run();
+            dialog.dispose();
+        });
+
+        JButton closeBtn = createStyledButton("Close", false);
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        btnBar.add(unhideSelectedBtn);
+        btnBar.add(unhideAllBtn);
+        btnBar.add(closeBtn);
+        content.add(btnBar, BorderLayout.SOUTH);
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
     }
 
     private void saveAndApply() {

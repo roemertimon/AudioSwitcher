@@ -41,7 +41,8 @@ public class TrayManager {
         trayIcon.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2 && e.getButton() == MouseEvent.BUTTON1) {
+                if (e.getButton() == MouseEvent.BUTTON1) {
+                    settingsFrame.refreshTableData();
                     settingsFrame.setVisible(true);
                     settingsFrame.toFront();
                 }

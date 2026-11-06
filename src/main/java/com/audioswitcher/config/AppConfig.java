@@ -96,6 +96,10 @@ public class AppConfig {
     // Device names enabled for the cycle shortcut (for resilient reconnects)
     private Set<String> enabledDeviceNames = new HashSet<>();
 
+    // Devices completely hidden / removed from UI by user
+    private Set<String> hiddenDeviceIds = new HashSet<>();
+    private Set<String> hiddenDeviceNames = new HashSet<>();
+
     // OSD settings
     private boolean showOsd = true;
     private int osdDurationMs = 1800;
@@ -169,6 +173,35 @@ public class AppConfig {
 
     public void setEnabledDeviceNames(Set<String> enabledDeviceNames) {
         this.enabledDeviceNames = enabledDeviceNames;
+    }
+
+    public Set<String> getHiddenDeviceIds() {
+        if (hiddenDeviceIds == null) {
+            hiddenDeviceIds = new HashSet<>();
+        }
+        return hiddenDeviceIds;
+    }
+
+    public void setHiddenDeviceIds(Set<String> hiddenDeviceIds) {
+        this.hiddenDeviceIds = hiddenDeviceIds;
+    }
+
+    public Set<String> getHiddenDeviceNames() {
+        if (hiddenDeviceNames == null) {
+            hiddenDeviceNames = new HashSet<>();
+        }
+        return hiddenDeviceNames;
+    }
+
+    public void setHiddenDeviceNames(Set<String> hiddenDeviceNames) {
+        this.hiddenDeviceNames = hiddenDeviceNames;
+    }
+
+    public boolean isDeviceHidden(String id, String name) {
+        if (id != null && getHiddenDeviceIds().contains(id)) {
+            return true;
+        }
+        return name != null && getHiddenDeviceNames().contains(name.toLowerCase());
     }
 
     public boolean isShowOsd() {

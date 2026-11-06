@@ -13,8 +13,8 @@ public class SoundNotifierTest {
 
         byte[] normalBuffer = SoundNotifier.generateChimeBuffer(0.35f);
         assertTrue(normalBuffer.length > 0, "Normal volume should produce a valid PCM buffer");
-        // 44100 Hz * 0.22 sec * 4 bytes = 38808 bytes
-        assertEquals(38808, normalBuffer.length, "Chime buffer size should match 220ms 16-bit stereo PCM");
+        // 44100 Hz * 0.16 sec * 4 bytes = 28224 bytes
+        assertEquals(28224, normalBuffer.length, "Chime buffer size should match 160ms 16-bit stereo PCM");
 
         byte[] loudBuffer = SoundNotifier.generateChimeBuffer(1.0f);
         assertEquals(normalBuffer.length, loudBuffer.length, "Buffer lengths should be identical across volume levels");
