@@ -11,6 +11,7 @@ import com.audioswitcher.audio.SoundNotifier;
 import com.audioswitcher.config.AppConfig;
 import com.audioswitcher.config.ConfigManager;
 import com.audioswitcher.hotkey.HotkeyManager;
+import com.audioswitcher.model.AudioDevice;
 import com.audioswitcher.ui.OsdOverlay;
 import com.audioswitcher.ui.SettingsFrame;
 import com.audioswitcher.ui.TrayManager;
@@ -18,8 +19,10 @@ import com.audioswitcher.ui.TrayManager;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class AudioSwitcherApp {
 
@@ -27,7 +30,20 @@ public class AudioSwitcherApp {
     private static HANDLE appMutex = null;
 
     public static void main(String[] args) {
-        // 1. Single Instance Check: if already running, bring existing window to front and exit quietly (no annoying popup!)
+        // Parse startup arguments
+        boolean startMinimizedArg = false;
+        if (args != null) {
+            for (String arg : args) {
+                if ("--minimized".equalsIgnoreCase(arg) || "-minimized".equalsIgnoreCase(arg)
+                        || "--tray".equalsIgnoreCase(arg) || "-tray".equalsIgnoreCase(arg)) {
+                    startMinimizedArg = true;
+                    break;
+                }
+            }
+        }
+        final boolean startMinimized = startMinimizedArg;
+
+        // 1. Single Instance Check: if already running, bring existing window to front and exit quietly
         appMutex = Kernel32.INSTANCE.CreateMutex(null, true, MUTEX_NAME);
         if (Kernel32.INSTANCE.GetLastError() == WinError.ERROR_ALREADY_EXISTS) {
             HWND hwnd = User32.INSTANCE.FindWindow(null, "Audio Switcher");
@@ -60,7 +76,7 @@ public class AudioSwitcherApp {
             OsdOverlay osdOverlay = new OsdOverlay();
             HotkeyManager hotkeyManager = new HotkeyManager();
 
-            // Device switch feedback: Sound chime & OSD overlay
+            // Device switch feedback: Sound chime & OSD overlay (instant responsiveness)
             audioManager.addDeviceSwitchedListener(device -> {
                 if (config.isPlayChimeOnSwitch()) {
                     SoundNotifier.playSwitchChime();
@@ -70,7 +86,7 @@ public class AudioSwitcherApp {
                 }
             });
 
-            // Re-registers all hotkeys (cycle + individual device hotkeys)
+            // Re-registers all hotkeys (cycle + active per-device hotkeys without collision)
             Runnable updateHotkeysRunnable = () -> {
                 List<HotkeyManager.HotkeyEntry> entries = new ArrayList<>();
 
@@ -83,18 +99,21 @@ public class AudioSwitcherApp {
                 ));
 
                 // Dedicated per-device hotkeys (ID >= 100)
+                // ONLY register hotkeys for devices that are CURRENTLY CONNECTED to prevent conflicts
                 int deviceHkId = HotkeyManager.DEVICE_HOTKEY_BASE_ID;
                 Map<String, AppConfig.DeviceHotkey> devHotkeys = config.getDeviceHotkeys();
-                for (Map.Entry<String, AppConfig.DeviceHotkey> entry : devHotkeys.entrySet()) {
-                    String deviceId = entry.getKey();
-                    AppConfig.DeviceHotkey hk = entry.getValue();
+                List<AudioDevice> connectedDevices = audioManager.getDevices();
+
+                for (AudioDevice device : connectedDevices) {
+                    AppConfig.DeviceHotkey hk = devHotkeys.get(device.getId());
                     if (hk != null && hk.getKeyCode() != 0) {
                         final int id = deviceHkId++;
+                        final String targetId = device.getId();
                         entries.add(new HotkeyManager.HotkeyEntry(
                                 id,
                                 hk.getModifiers(),
                                 hk.getKeyCode(),
-                                () -> audioManager.switchToDevice(deviceId)
+                                () -> audioManager.switchToDevice(targetId)
                         ));
                     }
                 }
@@ -104,13 +123,20 @@ public class AudioSwitcherApp {
 
             updateHotkeysRunnable.run();
 
+            // When audio hardware devices change, automatically refresh hotkeys for active hardware
+            audioManager.addDevicesChangedListener(updateHotkeysRunnable);
+
             // 4. UI: Settings & System Tray
             SettingsFrame settingsFrame = new SettingsFrame(audioManager, configManager, updateHotkeysRunnable);
             new TrayManager(audioManager, settingsFrame, configManager);
 
-            // Open the clean dashboard on startup
-            settingsFrame.setVisible(true);
-            settingsFrame.toFront();
+            // Handle start minimized: if requested via CLI or configured for Windows startup, keep hidden in tray
+            if (startMinimized || (config.isStartWithWindows() && config.isStartMinimized())) {
+                settingsFrame.setVisible(false);
+            } else {
+                settingsFrame.setVisible(true);
+                settingsFrame.toFront();
+            }
 
             // 5. Background hot-plug detection timer (checks every 5 seconds for newly plugged/unplugged hardware)
             Timer hotPlugTimer = new Timer(5000, e -> audioManager.refreshDevices());
@@ -121,7 +147,7 @@ public class AudioSwitcherApp {
             System.out.println("  Audio Switcher started successfully!");
             System.out.println("  Active Playback Device: " + (audioManager.getDefaultDevice() != null ? audioManager.getDefaultDevice().getName() : "None"));
             System.out.println("  Cycle Shortcut: " + config.getHotkeyDisplayString());
-            System.out.println("  Default Number Shortcuts: Ctrl + Alt + 1, 2, 3...");
+            System.out.println("  Start Minimized: " + (startMinimized || (config.isStartWithWindows() && config.isStartMinimized())));
             System.out.println("==================================================");
 
             // Register shutdown hook
