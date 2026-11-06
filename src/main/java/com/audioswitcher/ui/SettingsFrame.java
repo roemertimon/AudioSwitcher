@@ -45,6 +45,7 @@ public class SettingsFrame extends JFrame {
     private JComboBox<String> osdPositionCombo;
     private JComboBox<String> osdDurationCombo;
     private JCheckBox startupCheckBox;
+    private JCheckBox startMinimizedCheckBox;
 
     private int selectedGlobalModifiers;
     private int selectedGlobalKeyCode;
@@ -475,6 +476,14 @@ public class SettingsFrame extends JFrame {
         startupCheckBox.setFont(new Font("Segoe UI", Font.BOLD, 13));
         prefCard.add(startupCheckBox, gbc);
 
+        // 3b. Start Minimized Checkbox
+        gbc.gridy = 8;
+        gbc.insets = new Insets(0, 28, 4, 4);
+        startMinimizedCheckBox = new JCheckBox("Start minimized to system tray (hide main window on launch)");
+        startMinimizedCheckBox.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        startMinimizedCheckBox.setForeground(new Color(156, 163, 175));
+        prefCard.add(startMinimizedCheckBox, gbc);
+
         // Interactive toggle states: dims sub-controls when parent checkbox is unchecked!
         chimeCheckBox.addActionListener(e -> updateControlStates());
         osdCheckBox.addActionListener(e -> updateControlStates());
@@ -652,8 +661,37 @@ public class SettingsFrame extends JFrame {
         JButton okBtn = createStyledButton("Save Shortcut", true);
         okBtn.addActionListener(ev -> {
             if (resultCode[0] != 0 && !resultDisplay[0].isEmpty()) {
-                workingDeviceHotkeys.put(device.getId(), new AppConfig.DeviceHotkey(resultMods[0], resultCode[0], resultDisplay[0]));
-                tableModel.setValueAt(resultDisplay[0], selectedRow, 2);
+                // Check collision with cycle hotkey
+                if (selectedGlobalModifiers == resultMods[0] && selectedGlobalKeyCode == resultCode[0]) {
+                    JOptionPane.showMessageDialog(dialog,
+                            "This shortcut is already used by the Global Cycle Shortcut (" + selectedGlobalKeyDisplay + ").",
+                            "Shortcut Conflict", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                // Check and resolve collisions with other devices
+                String conflictingDeviceId = null;
+                for (Map.Entry<String, AppConfig.DeviceHotkey> entry : workingDeviceHotkeys.entrySet()) {
+                    if (!entry.getKey().equalsIgnoreCase(device.getId())) {
+                        AppConfig.DeviceHotkey otherHk = entry.getValue();
+                        if (otherHk != null && otherHk.getModifiers() == resultMods[0] && otherHk.getKeyCode() == resultCode[0]) {
+                            conflictingDeviceId = entry.getKey();
+                            break;
+                        }
+                    }
+                }
+
+                if (conflictingDeviceId != null) {
+                    workingDeviceHotkeys.remove(conflictingDeviceId);
+                }
+
+                workingDeviceHotkeys.put(device.getId(), new AppConfig.DeviceHotkey(
+                        resultMods[0],
+                        resultCode[0],
+                        resultDisplay[0],
+                        device.getName()
+                ));
+                refreshTableData();
                 dialog.dispose();
             } else {
                 JOptionPane.showMessageDialog(dialog, "Please press a valid combination (e.g. Ctrl + Alt + 1).", "Incomplete Shortcut", JOptionPane.WARNING_MESSAGE);
@@ -699,7 +737,8 @@ public class SettingsFrame extends JFrame {
             workingDeviceHotkeys.put(d.getId(), new AppConfig.DeviceHotkey(
                     3, // Ctrl + Alt
                     numKeys[i],
-                    "Ctrl + Alt + " + number
+                    "Ctrl + Alt + " + number,
+                    d.getName()
             ));
         }
         refreshTableData();
@@ -732,6 +771,7 @@ public class SettingsFrame extends JFrame {
         else osdDurationCombo.setSelectedIndex(4); // 3.0s
 
         startupCheckBox.setSelected(StartupManager.isStartupEnabled());
+        startMinimizedCheckBox.setSelected(config.isStartMinimized());
 
         String pos = config.getOsdPosition();
         if ("CENTER".equalsIgnoreCase(pos)) {
@@ -764,17 +804,26 @@ public class SettingsFrame extends JFrame {
 
         // 1. Save enabled devices
         Set<String> enabledIds = new HashSet<>();
+        Set<String> enabledNames = new HashSet<>();
         List<AudioDevice> devices = audioManager.getDevices();
         for (int i = 0; i < tableModel.getRowCount() && i < devices.size(); i++) {
             boolean enabled = (Boolean) tableModel.getValueAt(i, 0);
             devices.get(i).setCycleEnabled(enabled);
             if (enabled) {
                 enabledIds.add(devices.get(i).getId());
+                enabledNames.add(devices.get(i).getName());
             }
         }
         config.setEnabledDeviceIds(enabledIds);
+        config.setEnabledDeviceNames(enabledNames);
 
-        // 2. Save per-device hotkeys
+        // 2. Save per-device hotkeys with device names attached for migration resilience
+        for (AudioDevice dev : devices) {
+            AppConfig.DeviceHotkey hk = workingDeviceHotkeys.get(dev.getId());
+            if (hk != null) {
+                hk.setDeviceName(dev.getName());
+            }
+        }
         config.setDeviceHotkeys(new HashMap<>(workingDeviceHotkeys));
 
         // 3. Save global cycle hotkey
@@ -803,10 +852,13 @@ public class SettingsFrame extends JFrame {
             config.setOsdPosition("TOP");
         }
 
-        // 5. Save startup
+        // 5. Save startup & minimized settings
         boolean startup = startupCheckBox.isSelected();
         config.setStartWithWindows(startup);
         StartupManager.setStartupEnabled(startup);
+
+        boolean startMin = startMinimizedCheckBox.isSelected();
+        config.setStartMinimized(startMin);
 
         configManager.saveConfig();
 

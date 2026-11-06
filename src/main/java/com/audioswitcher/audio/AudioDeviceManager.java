@@ -8,6 +8,7 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,13 +31,40 @@ public class AudioDeviceManager {
         List<AudioDevice> freshList = WindowsCoreAudio.getPlaybackDevices();
         AppConfig config = configManager.getConfig();
         Set<String> enabledIds = config.getEnabledDeviceIds();
+        Set<String> enabledNames = config.getEnabledDeviceNames();
         Map<String, AppConfig.DeviceHotkey> hotkeys = config.getDeviceHotkeys();
 
-        boolean firstRun = !config.isInitialized() || enabledIds.isEmpty();
+        boolean firstRun = !config.isInitialized();
         boolean configUpdated = false;
 
-        if (firstRun) {
-            enabledIds = new HashSet<>();
+        // Clean up duplicate hotkeys: remove duplicate key combos that clash with each other
+        Set<String> registeredKeyCombos = new HashSet<>();
+        // Add cycle hotkey combination so device hotkeys don't conflict with it
+        registeredKeyCombos.add(config.getHotkeyModifiers() + ":" + config.getHotkeyKeyCode());
+
+        // Device name mapping for resilient recovery across Windows endpoint GUID changes
+        for (AudioDevice device : freshList) {
+            // Check if there is an existing hotkey mapping for this device name whose ID changed
+            if (!hotkeys.containsKey(device.getId())) {
+                for (Map.Entry<String, AppConfig.DeviceHotkey> entry : new ArrayList<>(hotkeys.entrySet())) {
+                    AppConfig.DeviceHotkey savedHk = entry.getValue();
+                    if (savedHk != null && device.getName().equalsIgnoreCase(savedHk.getDeviceName())) {
+                        // Migrate shortcut to the new endpoint ID
+                        hotkeys.remove(entry.getKey());
+                        savedHk.setDeviceName(device.getName());
+                        hotkeys.put(device.getId(), savedHk);
+                        configUpdated = true;
+                        break;
+                    }
+                }
+            }
+
+            // Sync device name in hotkey if present
+            AppConfig.DeviceHotkey currentHk = hotkeys.get(device.getId());
+            if (currentHk != null && currentHk.getDeviceName() == null) {
+                currentHk.setDeviceName(device.getName());
+                configUpdated = true;
+            }
         }
 
         // Available number keys for auto-assigning clean default shortcuts (Ctrl + Alt + 1..9)
@@ -46,34 +74,38 @@ public class AudioDeviceManager {
                 KeyEvent.VK_7, KeyEvent.VK_8, KeyEvent.VK_9
         };
 
-        for (int i = 0; i < freshList.size(); i++) {
-            AudioDevice device = freshList.get(i);
-
-            // Auto-enable in cycle on first run
-            if (firstRun) {
-                enabledIds.add(device.getId());
-                device.setCycleEnabled(true);
-                configUpdated = true;
-            } else {
-                device.setCycleEnabled(enabledIds.contains(device.getId()));
-            }
-
-            // Auto-assign clean default shortcut (Ctrl + Alt + 1..9) if device has none
-            if (!hotkeys.containsKey(device.getId()) && i < numKeys.length) {
-                int number = i + 1;
-                hotkeys.put(device.getId(), new AppConfig.DeviceHotkey(
-                        3, // Ctrl (2) + Alt (1)
-                        numKeys[i],
-                        "Ctrl + Alt + " + number
-                ));
-                configUpdated = true;
-            }
-        }
-
         if (firstRun) {
-            config.setEnabledDeviceIds(enabledIds);
+            enabledIds.clear();
+            enabledNames.clear();
+
+            for (int i = 0; i < freshList.size(); i++) {
+                AudioDevice device = freshList.get(i);
+                enabledIds.add(device.getId());
+                enabledNames.add(device.getName());
+                device.setCycleEnabled(true);
+
+                if (i < numKeys.length) {
+                    int number = i + 1;
+                    hotkeys.put(device.getId(), new AppConfig.DeviceHotkey(
+                            3, // Ctrl (2) + Alt (1)
+                            numKeys[i],
+                            "Ctrl + Alt + " + number,
+                            device.getName()
+                    ));
+                }
+            }
             config.setInitialized(true);
             configUpdated = true;
+        } else {
+            // Normal update: Respect user choices! NEVER silently re-assign shortcuts.
+            for (AudioDevice device : freshList) {
+                boolean isEnabled = enabledIds.contains(device.getId()) || enabledNames.contains(device.getName());
+                device.setCycleEnabled(isEnabled);
+                if (isEnabled && !enabledIds.contains(device.getId())) {
+                    enabledIds.add(device.getId());
+                    configUpdated = true;
+                }
+            }
         }
 
         if (configUpdated) {
@@ -116,7 +148,8 @@ public class AudioDeviceManager {
     }
 
     /**
-     * Cycles to the next enabled playback device.
+     * Cycles to the next enabled playback device. If a device fails to switch, continues
+     * through the cycle list until a working device is successfully activated.
      */
     public synchronized AudioDevice cycleToNextDevice() {
         refreshDevices();
@@ -139,13 +172,20 @@ public class AudioDeviceManager {
             }
         }
 
-        int nextIndex = (currentIndex + 1) % cycleList.size();
-        AudioDevice nextDevice = cycleList.get(nextIndex);
-        boolean success = switchToDevice(nextDevice.getId());
+        // Try candidate devices in circular sequence until one succeeds
+        for (int step = 1; step <= cycleList.size(); step++) {
+            int nextIndex = (currentIndex + step) % cycleList.size();
+            AudioDevice candidate = cycleList.get(nextIndex);
+            if (current != null && candidate.getId().equalsIgnoreCase(current.getId()) && cycleList.size() > 1) {
+                continue;
+            }
 
-        if (success) {
-            return nextDevice;
+            boolean success = switchToDevice(candidate.getId());
+            if (success) {
+                return candidate;
+            }
         }
+
         return null;
     }
 

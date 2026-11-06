@@ -4,6 +4,7 @@ import java.awt.event.KeyEvent;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -15,14 +16,20 @@ public class AppConfig {
         private int modifiers;
         private int keyCode;
         private String displayString;
+        private String deviceName; // Persisted name for resilient matching across endpoint GUID changes
 
         public DeviceHotkey() {
         }
 
         public DeviceHotkey(int modifiers, int keyCode, String displayString) {
+            this(modifiers, keyCode, displayString, null);
+        }
+
+        public DeviceHotkey(int modifiers, int keyCode, String displayString, String deviceName) {
             this.modifiers = modifiers;
             this.keyCode = keyCode;
             this.displayString = displayString;
+            this.deviceName = deviceName;
         }
 
         public int getModifiers() {
@@ -48,6 +55,30 @@ public class AppConfig {
         public void setDisplayString(String displayString) {
             this.displayString = displayString;
         }
+
+        public String getDeviceName() {
+            return deviceName;
+        }
+
+        public void setDeviceName(String deviceName) {
+            this.deviceName = deviceName;
+        }
+
+        public boolean matches(int mods, int code) {
+            return this.modifiers == mods && this.keyCode == code;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof DeviceHotkey that)) return false;
+            return modifiers == that.modifiers && keyCode == that.keyCode;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(modifiers, keyCode);
+        }
     }
 
     // Global cycle hotkey: default Ctrl + Alt + S (S for Sound / Switch)
@@ -62,6 +93,9 @@ public class AppConfig {
     // Device IDs enabled for the cycle shortcut
     private Set<String> enabledDeviceIds = new HashSet<>();
 
+    // Device names enabled for the cycle shortcut (for resilient reconnects)
+    private Set<String> enabledDeviceNames = new HashSet<>();
+
     // OSD settings
     private boolean showOsd = true;
     private int osdDurationMs = 1800;
@@ -73,6 +107,9 @@ public class AppConfig {
 
     // Windows startup setting
     private boolean startWithWindows = false;
+
+    // Start minimized setting (start hidden in tray without popping up GUI window)
+    private boolean startMinimized = true;
 
     // First run flag
     private boolean initialized = false;
@@ -123,6 +160,17 @@ public class AppConfig {
         this.enabledDeviceIds = enabledDeviceIds;
     }
 
+    public Set<String> getEnabledDeviceNames() {
+        if (enabledDeviceNames == null) {
+            enabledDeviceNames = new HashSet<>();
+        }
+        return enabledDeviceNames;
+    }
+
+    public void setEnabledDeviceNames(Set<String> enabledDeviceNames) {
+        this.enabledDeviceNames = enabledDeviceNames;
+    }
+
     public boolean isShowOsd() {
         return showOsd;
     }
@@ -169,6 +217,14 @@ public class AppConfig {
 
     public void setStartWithWindows(boolean startWithWindows) {
         this.startWithWindows = startWithWindows;
+    }
+
+    public boolean isStartMinimized() {
+        return startMinimized;
+    }
+
+    public void setStartMinimized(boolean startMinimized) {
+        this.startMinimized = startMinimized;
     }
 
     public boolean isInitialized() {
