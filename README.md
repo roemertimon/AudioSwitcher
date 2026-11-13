@@ -43,13 +43,17 @@
 
 ### Download
 
-To run Audio Switcher directly without building from source, download `audio-switcher-1.0.0-all.jar` from the [Releases](../../releases) page. It is a standalone fat JAR containing all dependencies and can be launched by double-clicking it or running:
+Download the latest release from the [Releases](../../releases) page:
+- **`AudioSwitcher.exe`**: Native Windows launcher with official icon and clean Task Manager integration.
+- **`audio-switcher-1.0.0-all.jar`**: Standalone executable fat JAR containing all dependencies.
+
+You can launch Audio Switcher directly with `AudioSwitcher.exe` or by running:
 
 ```powershell
 javaw -jar audio-switcher-1.0.0-all.jar
 ```
 
-Every push is built and verified by GitHub Actions, which also produces a ready-to-run JAR as a workflow artifact.
+When auto-start with Windows is enabled inside the application, Audio Switcher automatically ensures the native launcher is configured for clean display in Task Manager.
 
 ### Build from source
 
