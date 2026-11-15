@@ -115,6 +115,9 @@ public class AppConfig {
     // Start minimized setting (start hidden in tray without popping up GUI window)
     private boolean startMinimized = true;
 
+    // Gaming mode: pause global shortcuts while playing games (e.g. Valorant, Steam, Fullscreen)
+    private boolean pauseInGames = true;
+
     // First run flag
     private boolean initialized = false;
 
@@ -258,6 +261,14 @@ public class AppConfig {
 
     public void setStartMinimized(boolean startMinimized) {
         this.startMinimized = startMinimized;
+    }
+
+    public boolean isPauseInGames() {
+        return pauseInGames;
+    }
+
+    public void setPauseInGames(boolean pauseInGames) {
+        this.pauseInGames = pauseInGames;
     }
 
     public boolean isInitialized() {

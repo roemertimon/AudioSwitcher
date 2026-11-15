@@ -15,6 +15,7 @@ import com.audioswitcher.model.AudioDevice;
 import com.audioswitcher.ui.OsdOverlay;
 import com.audioswitcher.ui.SettingsFrame;
 import com.audioswitcher.ui.TrayManager;
+import com.audioswitcher.util.ActivityLogger;
 
 import javax.swing.*;
 import java.awt.*;
@@ -31,6 +32,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class AudioSwitcherApp {
 
@@ -102,6 +106,7 @@ public class AudioSwitcherApp {
             AudioDeviceManager audioManager = new AudioDeviceManager(configManager);
             OsdOverlay osdOverlay = new OsdOverlay();
             HotkeyManager hotkeyManager = new HotkeyManager();
+            hotkeyManager.setPauseInGamesSupplier(config::isPauseInGames);
 
             // Device switch feedback: Sound chime & OSD overlay (instant responsiveness)
             audioManager.addDeviceSwitchedListener(device -> {
@@ -170,22 +175,40 @@ public class AudioSwitcherApp {
                 settingsFrame.toFront();
             }
 
-            // 5. Background hot-plug detection timer (checks every 5 seconds for newly plugged/unplugged hardware)
-            Timer hotPlugTimer = new Timer(5000, e -> audioManager.refreshDevices());
-            hotPlugTimer.setRepeats(true);
-            hotPlugTimer.start();
+            // 5. Background hot-plug detection (runs on separate thread to keep UI and input hitch-free)
+            ScheduledExecutorService pollerScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "AudioHardwarePoller");
+                t.setDaemon(true);
+                return t;
+            });
+            pollerScheduler.scheduleWithFixedDelay(() -> {
+                try {
+                    boolean changed = audioManager.refreshDevices();
+                    if (changed && settingsFrameRef != null) {
+                        SwingUtilities.invokeLater(() -> settingsFrameRef.refreshTableData());
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }, 5, 5, TimeUnit.SECONDS);
+
+            ActivityLogger.log("Audio Switcher started successfully (Active: "
+                    + (audioManager.getDefaultDevice() != null ? audioManager.getDefaultDevice().getName() : "None")
+                    + ", Gaming Protection: " + config.isPauseInGames() + ")");
 
             System.out.println("==================================================");
             System.out.println("  Audio Switcher started successfully!");
             System.out.println("  Active Playback Device: " + (audioManager.getDefaultDevice() != null ? audioManager.getDefaultDevice().getName() : "None"));
             System.out.println("  Cycle Shortcut: " + config.getHotkeyDisplayString());
+            System.out.println("  Pause in Games: " + config.isPauseInGames());
             System.out.println("  Start Minimized: " + (startMinimized || (config.isStartWithWindows() && config.isStartMinimized())));
             System.out.println("==================================================");
 
             // Register shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                hotPlugTimer.stop();
+                pollerScheduler.shutdownNow();
                 hotkeyManager.stop();
+                ActivityLogger.log("Audio Switcher shut down.");
                 if (ipcServerSocket != null) {
                     try {
                         ipcServerSocket.close();

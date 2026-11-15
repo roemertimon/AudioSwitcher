@@ -1,9 +1,11 @@
 package com.audioswitcher.hotkey;
 
+import com.audioswitcher.util.ActivityLogger;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinUser.MSG;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 public class HotkeyManager {
 
@@ -46,19 +49,24 @@ public class HotkeyManager {
     private final Map<Integer, HotkeyEntry> activeEntries = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong lastTriggerTime = new AtomicLong(0);
+    private BooleanSupplier pauseInGamesSupplier = () -> false;
     private Thread loopThread;
     private int currentThreadId = 0;
 
     public HotkeyManager() {
     }
 
+    public void setPauseInGamesSupplier(BooleanSupplier supplier) {
+        this.pauseInGamesSupplier = supplier;
+    }
+
     /**
      * Updates and starts all configured hotkeys with deduplication and conflict protection.
+     * If the requested hotkeys are identical to the currently registered ones, avoids
+     * unnecessary thread tear-down and re-registration churn.
      */
     public synchronized void setHotkeys(List<HotkeyEntry> entries) {
-        stop();
-
-        activeEntries.clear();
+        Map<Integer, HotkeyEntry> proposed = new HashMap<>();
         Set<String> seenCombos = new HashSet<>();
 
         // Add entries without duplicate key combinations
@@ -66,11 +74,31 @@ public class HotkeyManager {
             if (entry.keyCode == 0) continue;
             String combo = entry.getComboKey();
             if (seenCombos.add(combo)) {
-                activeEntries.put(entry.id, entry);
+                proposed.put(entry.id, entry);
             } else {
                 System.out.println("Skipping duplicate hotkey combination: " + combo + " (ID: " + entry.id + ")");
             }
         }
+
+        // Avoid thread teardown / unregister churn if hotkeys have not changed
+        if (running.get() && proposed.size() == activeEntries.size()) {
+            boolean identical = true;
+            for (Map.Entry<Integer, HotkeyEntry> pe : proposed.entrySet()) {
+                HotkeyEntry current = activeEntries.get(pe.getKey());
+                if (current == null || !current.getComboKey().equals(pe.getValue().getComboKey())) {
+                    identical = false;
+                    break;
+                }
+            }
+            if (identical) {
+                return;
+            }
+        }
+
+        stop();
+
+        activeEntries.clear();
+        activeEntries.putAll(proposed);
 
         if (activeEntries.isEmpty()) {
             return;
@@ -120,6 +148,14 @@ public class HotkeyManager {
                         long now = System.currentTimeMillis();
                         if (now - lastTriggerTime.get() >= 200) {
                             lastTriggerTime.set(now);
+
+                            // Gaming Mode: If active window is a game or fullscreen, ignore hotkey
+                            if (pauseInGamesSupplier != null && pauseInGamesSupplier.getAsBoolean()
+                                    && GameDetector.isGameOrFullscreenActive()) {
+                                ActivityLogger.log("[SUPPRESSED] Hotkey ID " + id + " (" + entry.getComboKey() + ") ignored: active game or fullscreen application detected (" + GameDetector.getForegroundProcessName() + ")");
+                                continue;
+                            }
+
                             new Thread(entry.action, "HotkeyAction-" + id).start();
                         }
                     }

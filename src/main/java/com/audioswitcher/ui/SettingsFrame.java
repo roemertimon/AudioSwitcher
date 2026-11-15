@@ -47,6 +47,7 @@ public class SettingsFrame extends JFrame {
     private JComboBox<String> osdDurationCombo;
     private JCheckBox startupCheckBox;
     private JCheckBox startMinimizedCheckBox;
+    private JCheckBox pauseInGamesCheckBox;
 
     private int selectedGlobalModifiers;
     private int selectedGlobalKeyCode;
@@ -505,6 +506,28 @@ public class SettingsFrame extends JFrame {
         startMinimizedCheckBox.setForeground(new Color(156, 163, 175));
         prefCard.add(startMinimizedCheckBox, gbc);
 
+        // Separator 3
+        gbc.gridy = 9;
+        gbc.insets = new Insets(6, 4, 8, 4);
+        JSeparator sep3 = new JSeparator();
+        sep3.setForeground(new Color(45, 50, 60));
+        prefCard.add(sep3, gbc);
+
+        // 4. Gaming Mode / Fullscreen Protection Checkbox
+        gbc.gridy = 10;
+        gbc.insets = new Insets(2, 4, 4, 4);
+        pauseInGamesCheckBox = new JCheckBox("Pause shortcuts while playing games (Valorant, Steam, Fullscreen)");
+        pauseInGamesCheckBox.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        prefCard.add(pauseInGamesCheckBox, gbc);
+
+        // 4b. Sub-description
+        gbc.gridy = 11;
+        gbc.insets = new Insets(0, 28, 4, 4);
+        JLabel gamingSubLabel = new JLabel("Prevents accidental audio switching when using Ctrl, Alt, S, or number keys in games");
+        gamingSubLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        gamingSubLabel.setForeground(new Color(156, 163, 175));
+        prefCard.add(gamingSubLabel, gbc);
+
         // Interactive toggle states: dims sub-controls when parent checkbox is unchecked!
         chimeCheckBox.addActionListener(e -> updateControlStates());
         osdCheckBox.addActionListener(e -> updateControlStates());
@@ -793,6 +816,7 @@ public class SettingsFrame extends JFrame {
 
         startupCheckBox.setSelected(StartupManager.isStartupEnabled());
         startMinimizedCheckBox.setSelected(config.isStartMinimized());
+        pauseInGamesCheckBox.setSelected(config.isPauseInGames());
 
         String pos = config.getOsdPosition();
         if ("CENTER".equalsIgnoreCase(pos)) {
@@ -992,6 +1016,8 @@ public class SettingsFrame extends JFrame {
 
         boolean startMin = startMinimizedCheckBox.isSelected();
         config.setStartMinimized(startMin);
+
+        config.setPauseInGames(pauseInGamesCheckBox.isSelected());
 
         configManager.saveConfig();
 

@@ -2,7 +2,9 @@ package com.audioswitcher.audio;
 
 import com.audioswitcher.config.AppConfig;
 import com.audioswitcher.config.ConfigManager;
+import com.audioswitcher.hotkey.GameDetector;
 import com.audioswitcher.model.AudioDevice;
+import com.audioswitcher.util.ActivityLogger;
 
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
@@ -28,8 +30,25 @@ public class AudioDeviceManager {
         refreshDevices();
     }
 
-    public synchronized void refreshDevices() {
+    public synchronized boolean hasDeviceListChanged(List<AudioDevice> freshList) {
+        if (freshList.size() != allCachedDevices.size()) {
+            return true;
+        }
+        for (int i = 0; i < freshList.size(); i++) {
+            AudioDevice a = freshList.get(i);
+            AudioDevice b = allCachedDevices.get(i);
+            if (!a.getId().equalsIgnoreCase(b.getId())
+                    || !a.getName().equalsIgnoreCase(b.getName())
+                    || a.isDefault() != b.isDefault()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean refreshDevices() {
         List<AudioDevice> freshList = WindowsCoreAudio.getPlaybackDevices();
+        boolean changed = hasDeviceListChanged(freshList);
         AppConfig config = configManager.getConfig();
         Set<String> enabledIds = config.getEnabledDeviceIds();
         Set<String> enabledNames = config.getEnabledDeviceNames();
@@ -124,13 +143,16 @@ public class AudioDeviceManager {
             }
         }
 
-        for (Runnable listener : devicesChangedListeners) {
-            try {
-                listener.run();
-            } catch (Exception e) {
-                e.printStackTrace();
+        if (changed || firstRun) {
+            for (Runnable listener : devicesChangedListeners) {
+                try {
+                    listener.run();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
+        return changed;
     }
 
     public synchronized void hideDevice(String deviceId) {
@@ -268,6 +290,7 @@ public class AudioDeviceManager {
             }
 
             if (newlyActive != null) {
+                ActivityLogger.log("[SWITCH] Activated device: '" + newlyActive.getName() + "' (ID: " + newlyActive.getId() + ") | Foreground: " + GameDetector.getForegroundProcessName());
                 for (Consumer<AudioDevice> listener : deviceSwitchedListeners) {
                     try {
                         listener.accept(newlyActive);
@@ -276,6 +299,8 @@ public class AudioDeviceManager {
                     }
                 }
             }
+        } else {
+            ActivityLogger.log("[SWITCH_FAILED] Failed to activate device ID: " + deviceId);
         }
         return success;
     }

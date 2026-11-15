@@ -19,6 +19,7 @@ public class AppConfigTest {
         assertTrue(config.isPlayChimeOnSwitch());
         assertEquals(35, config.getChimeVolume());
         assertTrue(config.isStartMinimized(), "startMinimized should default to true");
+        assertTrue(config.isPauseInGames(), "pauseInGames should default to true for gamer safety");
         assertFalse(config.isStartWithWindows());
         assertFalse(config.isInitialized());
         assertNotNull(config.getDeviceHotkeys());
@@ -60,5 +61,14 @@ public class AppConfigTest {
         assertTrue(config.isDeviceHidden("device-123", "Some Name"));
         assertTrue(config.isDeviceHidden("other-id", "NVIDIA High Definition Audio"));
         assertFalse(config.isDeviceHidden("other-id", "Realtek Audio"));
+    }
+
+    @Test
+    public void testPauseInGamesProperty() {
+        AppConfig config = new AppConfig();
+        assertTrue(config.isPauseInGames());
+
+        config.setPauseInGames(false);
+        assertFalse(config.isPauseInGames());
     }
 }
